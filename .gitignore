@@ -1,0 +1,2 @@
+# Ignore the compiled AST test executable
+/tests/ast_test
