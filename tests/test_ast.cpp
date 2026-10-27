@@ -35,6 +35,25 @@ int main() {
     // TEST 3: The variable should be named "x"
     assert(var->name == "x");
 
+    // TEST: Create and check the unary expression -10
+    auto number = std::make_unique<gash::IntegerExpr>(10);
+
+    auto unary = std::make_unique<gash::UnaryExpr>(
+        "-",
+        std::move(number)
+    );
+
+    // Check the operator
+    assert(unary->op == "-");
+
+    // Check that the operand is an integer literal
+    auto* operand = dynamic_cast<gash::IntegerExpr*>(
+        unary->operand.get()
+    );
+
+    assert(operand != nullptr);
+    assert(operand->value == 10);
+
     // TEST 4: The initializer should contain integer 10
     auto* integer = dynamic_cast<gash::IntegerExpr*>(
         var->initializer.get()

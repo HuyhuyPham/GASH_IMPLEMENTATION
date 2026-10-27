@@ -64,6 +64,20 @@ struct BinaryExpr final : Expr {
           right(std::move(rhs)) {}
 };
 
+
+ // Represents a unary operation, such as -x or !ready.
+struct UnaryExpr final : Expr {
+    std::string op;
+    std::unique_ptr<Expr> operand;
+
+    UnaryExpr(
+        std::string symbol,
+        std::unique_ptr<Expr> expr
+    )
+        : op(std::move(symbol)),
+          operand(std::move(expr)) {}
+};
+
 // Represents a variable declaration, such as var x = 10;
 struct VarDeclStmt final : Stmt {
     std::string name;
