@@ -436,6 +436,90 @@ int main() {
     assert(rightNode != nullptr);
     assert(rightNode->value == 1);
 
+    // TEST: Create a function declaration
+    // func add(a: int, b: int) { return a + b; }
+
+    // Create the parameters
+    std::vector<gash::Parameter> params;
+
+    params.emplace_back("a", "int");
+    params.emplace_back("b", "int");
+
+    // Create the return expression: a + b
+    auto returnValue = std::make_unique<gash::BinaryExpr>(
+        "+",
+        std::make_unique<gash::VariableExpr>("a"),
+        std::make_unique<gash::VariableExpr>("b")
+    );
+
+    // Create the return statement
+    auto returnStatement = std::make_unique<gash::ReturnStmt>(
+        std::move(returnValue)
+    );
+
+    // Add the return statement to the function body
+    std::vector<std::unique_ptr<gash::Stmt>> functionStatements;
+
+    functionStatements.push_back(std::move(returnStatement));
+
+    // Create the function body
+    auto functionBody = std::make_unique<gash::BlockStmt>(
+        std::move(functionStatements)
+    );
+
+    // Create the function declaration
+    auto function = std::make_unique<gash::FunctionDeclStmt>(
+        "add",
+        std::move(params),
+        std::move(functionBody)
+    );
+
+    // Check the function name
+    assert(function->name == "add");
+
+    // Check the parameters
+    assert(function->parameters.size() == 2);
+    assert(function->parameters[0].name == "a");
+    assert(function->parameters[0].type == "int");
+    assert(function->parameters[1].name == "b");
+    assert(function->parameters[1].type == "int");
+
+    // Check the function body
+    assert(function->body != nullptr);
+    assert(function->body->statements.size() == 1);
+
+    // Check that the first statement is ReturnStmt
+    auto* returnNode = dynamic_cast<gash::ReturnStmt*>(
+        function->body->statements[0].get()
+    );
+
+    assert(returnNode != nullptr);
+    assert(returnNode->value != nullptr);
+
+    // Check that the returned expression is a + b
+    auto* resultExpr = dynamic_cast<gash::BinaryExpr*>(
+        returnNode->value.get()
+    );
+
+    assert(resultExpr != nullptr);
+    assert(resultExpr->op == "+");
+
+    // Check the left operand: a
+    auto* leftParam = dynamic_cast<gash::VariableExpr*>(
+        resultExpr->left.get()
+    );
+
+    assert(leftParam != nullptr);
+    assert(leftParam->name == "a");
+
+    // Check the right operand: b
+    auto* rightParam = dynamic_cast<gash::VariableExpr*>(
+        resultExpr->right.get()
+    );
+
+    assert(rightParam != nullptr);
+    assert(rightParam->name == "b");
+
     // Display success only if all assertions pass
     std::cout << "AST test passed!" << std::endl;
 

@@ -135,6 +135,16 @@ struct UnaryExpr final : Expr {
           operand(std::move(expr)) {}
 };
 
+// Represents a function parameter with a name and type.
+struct Parameter {
+    std::string name;
+    std::string type;
+
+    Parameter(std::string n, std::string t)
+        : name(std::move(n)),
+          type(std::move(t)) {}
+};
+
 // Represents a variable declaration, such as var x = 10;
 struct VarDeclStmt final : Stmt {
     std::string name;
@@ -156,6 +166,14 @@ struct ExpressionStmt final : Stmt {
 
     explicit ExpressionStmt(std::unique_ptr<Expr> expr)
         : expression(std::move(expr)) {}
+};
+
+// Represents a return statement, such as return a + b;.
+struct ReturnStmt final : Stmt {
+    std::unique_ptr<Expr> value;
+
+    explicit ReturnStmt(std::unique_ptr<Expr> expr)
+        : value(std::move(expr)) {}
 };
 
 // Represents a block of statements enclosed in { }.
@@ -208,6 +226,22 @@ struct RepeatStmt final : Stmt {
     )
         : count(std::move(repeatCount)),
           body(std::move(loopBody)) {}
+};
+
+// Represents a function declaration, such as func add(...) { ... }.
+struct FunctionDeclStmt final : Stmt {
+    std::string name;
+    std::vector<Parameter> parameters;
+    std::unique_ptr<BlockStmt> body;
+
+    FunctionDeclStmt(
+        std::string functionName,
+        std::vector<Parameter> params,
+        std::unique_ptr<BlockStmt> functionBody
+    )
+        : name(std::move(functionName)),
+          parameters(std::move(params)),
+          body(std::move(functionBody)) {}
 };
 
 // Represents the whole GASH program as a list of statements.
