@@ -38,6 +38,38 @@ struct IntegerExpr final : Expr {
         : value(v) {}
 };
 
+ // Represents a floating-point literal, such as 19.99.
+struct FloatExpr final : Expr {
+    double value;
+
+    explicit FloatExpr(double v)
+        : value(v) {}
+};
+
+// Represents a string literal, such as "Alice".
+struct StringExpr final : Expr {
+    std::string value;
+
+    explicit StringExpr(std::string v)
+        : value(std::move(v)) {}
+};
+
+// Represents a Boolean literal, such as true or false.
+struct BoolExpr final : Expr {
+    bool value;
+
+    explicit BoolExpr(bool v)
+        : value(v) {}
+};
+
+// Represents a character literal, such as 'A'.
+struct CharExpr final : Expr {
+    char value;
+
+    explicit CharExpr(char v)
+        : value(v) {}
+};
+
 // Represents a variable reference, such as x.
 struct VariableExpr final : Expr {
     std::string name;

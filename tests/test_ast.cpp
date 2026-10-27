@@ -22,17 +22,17 @@ int main() {
     // Add declaration to the program
     program.statements.push_back(std::move(declaration));
 
-    // TEST 1: There should be exactly one statement
+    // TEST: There should be exactly one statement
     assert(program.statements.size() == 1);
 
-    // TEST 2: That statement should be VarDeclStmt
+    // TEST: That statement should be VarDeclStmt
     auto* var = dynamic_cast<gash::VarDeclStmt*>(
         program.statements[0].get()
     );
 
     assert(var != nullptr);
 
-    // TEST 3: The variable should be named "x"
+    // TEST: The variable should be named "x"
     assert(var->name == "x");
 
     // TEST: Create and check the unary expression -10
@@ -54,13 +54,40 @@ int main() {
     assert(operand != nullptr);
     assert(operand->value == 10);
 
-    // TEST 4: The initializer should contain integer 10
+    // TEST: The initializer should contain integer 10
     auto* integer = dynamic_cast<gash::IntegerExpr*>(
         var->initializer.get()
     );
 
     assert(integer != nullptr);
     assert(integer->value == 10);
+
+    // TEST: Create and check a floating-point literal
+    auto decimal = std::make_unique<gash::FloatExpr>(19.99);
+
+    // Check that the value is stored correctly
+    assert(decimal->value > 19.98);
+    assert(decimal->value < 20.00);
+
+    // TEST: Create and check a string literal
+    auto text = std::make_unique<gash::StringExpr>("Alice");
+
+    // Check that the string value is stored correctly
+    assert(text->value == "Alice");
+
+    // TEST: Create and check Boolean literals
+    auto booleanTrue = std::make_unique<gash::BoolExpr>(true);
+    auto booleanFalse = std::make_unique<gash::BoolExpr>(false);
+
+    // Check both Boolean values
+    assert(booleanTrue->value == true);
+    assert(booleanFalse->value == false);
+
+    // TEST: Create and check a character literal
+    auto character = std::make_unique<gash::CharExpr>('A');
+
+    // Check that the character is stored correctly
+    assert(character->value == 'A');
 
     // Display success only if all assertions pass
     std::cout << "AST test passed!" << std::endl;
