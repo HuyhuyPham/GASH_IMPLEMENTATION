@@ -520,6 +520,365 @@ int main() {
     assert(rightParam != nullptr);
     assert(rightParam->name == "b");
 
+    // TEST: Create list<int>(3)
+    auto list = std::make_unique<gash::ListExpr>(
+        "int",
+        std::make_unique<gash::IntegerExpr>(3)
+    );
+
+    // Check the element type
+    assert(list->elementType == "int");
+
+    // Check the list size expression
+    auto* listSize = dynamic_cast<gash::IntegerExpr*>(
+        list->size.get()
+    );
+
+    assert(listSize != nullptr);
+    assert(listSize->value == 3);
+
+    // TEST: Create numbers[0]
+    auto indexExpression = std::make_unique<gash::IndexExpr>(
+        std::make_unique<gash::VariableExpr>("numbers"),
+        std::make_unique<gash::IntegerExpr>(0)
+    );
+
+    // Check the collection
+    auto* collectionNode = dynamic_cast<gash::VariableExpr*>(
+        indexExpression->collection.get()
+    );
+
+    assert(collectionNode != nullptr);
+    assert(collectionNode->name == "numbers");
+
+    // Check the index
+    auto* indexNode = dynamic_cast<gash::IntegerExpr*>(
+        indexExpression->index.get()
+    );
+
+    assert(indexNode != nullptr);
+    assert(indexNode->value == 0);
+
+    // TEST: Create an exit statement
+    auto exitStatement = std::make_unique<gash::ExitStmt>();
+
+    // Check that the node is an ExitStmt
+    assert(exitStatement != nullptr);
+
+    // TEST: Create a skip statement
+    auto skipStatement = std::make_unique<gash::SkipStmt>();
+
+    // Check that the node is a SkipStmt
+    assert(skipStatement != nullptr);
+
+    // TEST: Create a block containing exit and skip statements
+    std::vector<std::unique_ptr<gash::Stmt>> loopStatements;
+
+    loopStatements.push_back(
+        std::make_unique<gash::ExitStmt>()
+    );
+
+    loopStatements.push_back(
+        std::make_unique<gash::SkipStmt>()
+    );
+
+    auto loopBlock = std::make_unique<gash::BlockStmt>(
+        std::move(loopStatements)
+    );
+
+    // Check that the block contains two statements
+    assert(loopBlock->statements.size() == 2);
+
+    // Check the first statement is ExitStmt
+    auto* exitNode = dynamic_cast<gash::ExitStmt*>(
+        loopBlock->statements[0].get()
+    );
+
+    assert(exitNode != nullptr);
+
+    // Check the second statement is SkipStmt
+    auto* skipNode = dynamic_cast<gash::SkipStmt*>(
+        loopBlock->statements[1].get()
+    );
+
+    assert(skipNode != nullptr);
+
+    // TEST: Create budget(100) { var x = 10; }
+
+    // Create the budget limit: 100
+    auto budgetLimit =
+        std::make_unique<gash::IntegerExpr>(100);
+
+    // Create the budget body statements
+    std::vector<std::unique_ptr<gash::Stmt>> budgetStatements;
+
+    budgetStatements.push_back(
+        std::make_unique<gash::VarDeclStmt>(
+            "x",
+            std::make_unique<gash::IntegerExpr>(10)
+        )
+    );
+
+    // Create the budget body block
+    auto budgetBody = std::make_unique<gash::BlockStmt>(
+        std::move(budgetStatements)
+    );
+
+    // Create the budget statement
+    auto budget = std::make_unique<gash::BudgetStmt>(
+        std::move(budgetLimit),
+        std::move(budgetBody)
+    );
+
+    // Check that both parts exist
+    assert(budget->limit != nullptr);
+    assert(budget->body != nullptr);
+
+    // Check that the body contains one statement
+    assert(budget->body->statements.size() == 1);
+
+    // Check that the limit is an integer expression
+    auto* limitExpr = dynamic_cast<gash::IntegerExpr*>(
+        budget->limit.get()
+    );
+
+    assert(limitExpr != nullptr);
+    assert(limitExpr->value == 100);
+
+    // Check that the body contains a variable declaration
+    auto* budgetVar = dynamic_cast<gash::VarDeclStmt*>(
+        budget->body->statements[0].get()
+    );
+
+    assert(budgetVar != nullptr);
+    assert(budgetVar->name == "x");
+
+    // TEST: Create guard balance >= 0;
+
+    // Create the guard condition: balance >= 0
+    auto guardCondition = std::make_unique<gash::BinaryExpr>(
+        ">=",
+        std::make_unique<gash::VariableExpr>("balance"),
+        std::make_unique<gash::IntegerExpr>(0)
+    );
+
+    // Create the guard statement
+    auto guardStatement = std::make_unique<gash::GuardStmt>(
+        std::move(guardCondition)
+    );
+
+    // Check that the guard contains a condition
+    assert(guardStatement->condition != nullptr);
+
+    // Check that the condition is a binary expression
+    auto* guardBinary = dynamic_cast<gash::BinaryExpr*>(
+        guardStatement->condition.get()
+    );
+
+    assert(guardBinary != nullptr);
+    assert(guardBinary->op == ">=");
+
+    // Check the left operand: balance
+    auto* guardVariable = dynamic_cast<gash::VariableExpr*>(
+        guardBinary->left.get()
+    );
+
+    assert(guardVariable != nullptr);
+    assert(guardVariable->name == "balance");
+
+    // Check the right operand: 0
+    auto* guardValue = dynamic_cast<gash::IntegerExpr*>(
+        guardBinary->right.get()
+    );
+
+    assert(guardValue != nullptr);
+    assert(guardValue->value == 0);
+
+    // TEST: Create lock balance;
+    auto lockStatement =
+        std::make_unique<gash::LockStmt>("balance");
+
+    // Check the locked variable name
+    assert(lockStatement->name == "balance");
+
+    // TEST: Create unlock balance;
+    auto unlockStatement =
+        std::make_unique<gash::UnlockStmt>("balance");
+
+    // Check the unlocked variable name
+    assert(unlockStatement->name == "balance");
+
+    // TEST: Create a block containing lock and unlock
+    std::vector<std::unique_ptr<gash::Stmt>> lockStatements;
+
+    lockStatements.push_back(
+        std::make_unique<gash::LockStmt>("balance")
+    );
+
+    lockStatements.push_back(
+        std::make_unique<gash::UnlockStmt>("balance")
+    );
+
+    auto lockBlock = std::make_unique<gash::BlockStmt>(
+        std::move(lockStatements)
+    );
+
+    // Check the block contains two statements
+    assert(lockBlock->statements.size() == 2);
+
+    // Check the first statement is LockStmt
+    auto* lockNode = dynamic_cast<gash::LockStmt*>(
+        lockBlock->statements[0].get()
+    );
+
+    assert(lockNode != nullptr);
+    assert(lockNode->name == "balance");
+
+    // Check the second statement is UnlockStmt
+    auto* unlockNode = dynamic_cast<gash::UnlockStmt*>(
+        lockBlock->statements[1].get()
+    );
+
+    assert(unlockNode != nullptr);
+    assert(unlockNode->name == "balance");
+
+    // TEST: Create checkpoint save1(x, y);
+
+    // Create the list of variable names
+    std::vector<std::string> checkpointVariables;
+
+    checkpointVariables.push_back("x");
+    checkpointVariables.push_back("y");
+
+    // Create the checkpoint statement
+    auto checkpoint = std::make_unique<gash::CheckpointStmt>(
+        "save1",
+        std::move(checkpointVariables)
+    );
+
+    // Check the checkpoint label
+    assert(checkpoint->label == "save1");
+
+    // Check the number of saved variables
+    assert(checkpoint->variables.size() == 2);
+
+    // Check the variable names
+    assert(checkpoint->variables[0] == "x");
+    assert(checkpoint->variables[1] == "y");
+
+    // TEST: Create restore(save1);
+
+    // Create the restore statement
+    auto restore = std::make_unique<gash::RestoreStmt>(
+        "save1"
+    );
+
+    // Check that the checkpoint label is correct
+    assert(restore->label == "save1");
+
+    // TEST: Create a block with checkpoint and restore
+    std::vector<std::unique_ptr<gash::Stmt>> checkpointStatements;
+
+    checkpointStatements.push_back(
+        std::make_unique<gash::CheckpointStmt>(
+            "initial",
+            std::vector<std::string>{"x", "y"}
+        )
+    );
+
+    checkpointStatements.push_back(
+        std::make_unique<gash::RestoreStmt>("initial")
+    );
+
+    auto checkpointBlock = std::make_unique<gash::BlockStmt>(
+        std::move(checkpointStatements)
+    );
+
+    // Check the block contains two statements
+    assert(checkpointBlock->statements.size() == 2);
+
+    // Check the first statement type
+    auto* checkpointNode = dynamic_cast<gash::CheckpointStmt*>(
+        checkpointBlock->statements[0].get()
+    );
+
+    assert(checkpointNode != nullptr);
+    assert(checkpointNode->label == "initial");
+
+    // Check the second statement type
+    auto* restoreNode = dynamic_cast<gash::RestoreStmt*>(
+        checkpointBlock->statements[1].get()
+    );
+
+    assert(restoreNode != nullptr);
+    assert(restoreNode->label == "initial");
+
+    // TEST: Create inspect(numbers);
+
+    // Create the argument list
+    std::vector<std::unique_ptr<gash::Expr>> inspectArgs;
+
+    // Add the variable numbers as an argument
+    inspectArgs.push_back(
+        std::make_unique<gash::VariableExpr>("numbers")
+    );
+
+    // Create the inspect function call
+    auto inspectCall = std::make_unique<gash::CallExpr>(
+        "inspect",
+        std::move(inspectArgs)
+    );
+
+    // Wrap the call in an expression statement
+    auto inspectStatement =
+        std::make_unique<gash::ExpressionStmt>(
+            std::move(inspectCall)
+        );
+
+    // Check that the statement contains a CallExpr
+    auto* inspectNode = dynamic_cast<gash::CallExpr*>(
+        inspectStatement->expression.get()
+    );
+
+    assert(inspectNode != nullptr);
+    assert(inspectNode->callee == "inspect");
+    assert(inspectNode->arguments.size() == 1);
+
+    // Check the inspect argument
+    auto* inspectVariable = dynamic_cast<gash::VariableExpr*>(
+        inspectNode->arguments[0].get()
+    );
+
+    assert(inspectVariable != nullptr);
+    assert(inspectVariable->name == "numbers");
+
+    // TEST: Create preview();
+
+    // Create an empty argument list
+    std::vector<std::unique_ptr<gash::Expr>> previewArgs;
+
+    // Create the preview function call
+    auto previewCall = std::make_unique<gash::CallExpr>(
+        "preview",
+        std::move(previewArgs)
+    );
+
+    // Wrap the call in an expression statement
+    auto previewStatement =
+        std::make_unique<gash::ExpressionStmt>(
+            std::move(previewCall)
+        );
+
+    // Check the call structure
+    auto* previewNode = dynamic_cast<gash::CallExpr*>(
+        previewStatement->expression.get()
+    );
+
+    assert(previewNode != nullptr);
+    assert(previewNode->callee == "preview");
+    assert(previewNode->arguments.empty());
+
+
     // Display success only if all assertions pass
     std::cout << "AST test passed!" << std::endl;
 

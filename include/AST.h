@@ -91,6 +91,32 @@ struct CallExpr final : Expr {
           arguments(std::move(args)) {}
 };
 
+// Represents list creation, such as list<int>(3).
+struct ListExpr final : Expr {
+    std::string elementType;
+    std::unique_ptr<Expr> size;
+
+    ListExpr(
+        std::string type,
+        std::unique_ptr<Expr> listSize
+    )
+        : elementType(std::move(type)),
+          size(std::move(listSize)) {}
+};
+
+// Represents list indexing, such as numbers[0].
+struct IndexExpr final : Expr {
+    std::unique_ptr<Expr> collection;
+    std::unique_ptr<Expr> index;
+
+    IndexExpr(
+        std::unique_ptr<Expr> list,
+        std::unique_ptr<Expr> position
+    )
+        : collection(std::move(list)),
+          index(std::move(position)) {}
+};
+
 // Represents a binary operation, such as x + 5.
 struct BinaryExpr final : Expr {
     std::string op;
@@ -226,6 +252,72 @@ struct RepeatStmt final : Stmt {
     )
         : count(std::move(repeatCount)),
           body(std::move(loopBody)) {}
+};
+
+// Represents exiting the current loop, such as exit;.
+struct ExitStmt final : Stmt {
+};
+
+// Represents skipping to the next loop iteration, such as skip;.
+struct SkipStmt final : Stmt {
+};
+
+// Represents a budget block, such as budget(100) { ... }.
+struct BudgetStmt final : Stmt {
+    std::unique_ptr<Expr> limit;
+    std::unique_ptr<BlockStmt> body;
+
+    BudgetStmt(
+        std::unique_ptr<Expr> budgetLimit,
+        std::unique_ptr<BlockStmt> budgetBody
+    )
+        : limit(std::move(budgetLimit)),
+          body(std::move(budgetBody)) {}
+};
+
+// Represents a guard condition, such as guard balance >= 0;.
+struct GuardStmt final : Stmt {
+    std::unique_ptr<Expr> condition;
+
+    explicit GuardStmt(std::unique_ptr<Expr> cond)
+        : condition(std::move(cond)) {}
+};
+
+// Represents locking a variable, such as lock balance;.
+struct LockStmt final : Stmt {
+    std::string name;
+
+    explicit LockStmt(std::string n)
+        : name(std::move(n)) {}
+};
+
+// Represents unlocking a variable, such as unlock balance;.
+struct UnlockStmt final : Stmt {
+    std::string name;
+
+    explicit UnlockStmt(std::string n)
+        : name(std::move(n)) {}
+};
+
+// Represents a checkpoint, such as checkpoint save1(x, y);.
+struct CheckpointStmt final : Stmt {
+    std::string label;
+    std::vector<std::string> variables;
+
+    CheckpointStmt(
+        std::string checkpointLabel,
+        std::vector<std::string> variableNames
+    )
+        : label(std::move(checkpointLabel)),
+          variables(std::move(variableNames)) {}
+};
+
+// Represents restoring a checkpoint, such as restore(save1);.
+struct RestoreStmt final : Stmt {
+    std::string label;
+
+    explicit RestoreStmt(std::string checkpointLabel)
+        : label(std::move(checkpointLabel)) {}
 };
 
 // Represents a function declaration, such as func add(...) { ... }.
