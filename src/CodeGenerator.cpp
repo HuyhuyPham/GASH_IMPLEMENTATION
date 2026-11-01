@@ -34,6 +34,91 @@ namespace gash{
             emitLine(emitExpression(*exprStmt->expression) + ";");
             return;
         }
+        if(const auto* blockStmt = dynamic_cast<const BlockStmt*>(&stmt)){
+            emitLine("{");
+            indentLevel++;
+            for(int i = 0; i < blockStmt->statements.size(); i++){
+                emitStatement(*blockStmt->statements[i]);
+            }
+            indentLevel--;
+            emitLine("}");
+            return;
+        }
+        if(const auto* ifStmt = dynamic_cast<const IfStmt*>(&stmt)){
+            std::string condition = emitExpression(*ifStmt->condition);
+            emitLine("if(" + condition + ")");
+            emitStatement(*ifStmt->thenBranch);
+            if (ifStmt->elseBranch != nullptr) {
+                emitLine("else");
+                emitStatement(*ifStmt->elseBranch);
+            }
+            return;
+        }
+        if(const auto* whileStmt = dynamic_cast<const WhileStmt*>(&stmt)){
+            std::string condition = emitExpression(*whileStmt->condition);
+            emitLine("while(" + condition + ")");
+            emitStatement(*whileStmt->body);
+            return;
+        }
+        if(const auto* repeatStmt = dynamic_cast<const RepeatStmt*>(&stmt)){
+            std::string times = emitExpression(*repeatStmt->count);
+            int id = nextRepeatId++;
+            std::string counterName = "gash_repeat_index_" + std::to_string(id);
+            std::string limitName = "gash_repeat_limit_" + std::to_string(id);
+            emitLine("{");
+            indentLevel++;
+            emitLine("const int " + limitName + " = " + times + ";");
+            emitLine("for (int " + counterName + " = 0; " +counterName + " < " + limitName + ";" + counterName + "++)");
+            emitStatement(*repeatStmt->body);
+            emitLine("}");
+            return;
+        }
+        if(const auto* exitStmt = dynamic_cast<const ExitStmt*>(&stmt)){
+            emitLine("break;");
+            return;
+        }
+        if(const auto* skipStmt = dynamic_cast<const SkipStmt*>(&stmt)){
+            emitLine("continue;");
+            return;
+        }
+        if(const auto* returnStmt = dynamic_cast<const ReturnStmt*>(&stmt)){
+            if (returnStmt->value == nullptr) {
+                emitLine("return;");
+            } else {
+                std::string value = emitExpression(*returnStmt->value);
+                emitLine("return " + value + ";");
+            }
+            return;
+        }
+        if(const auto* functionStmt = dynamic_cast<const FunctionDeclStmt*>(&stmt)){
+            std::string name = "gash_" + functionStmt->name;
+            std::string signature = "auto " + name + "(";
+            for(size_t i = 0; i < functionStmt->parameters.size(); i++){
+                const auto& param = functionStmt->parameters[i];
+                std::string cppType;
+                if(param.type == "int"){
+                    cppType = "int";
+                } else if(param.type == "float"){
+                    cppType = "double";
+                } else if(param.type == "string"){
+                    cppType = "std::string";
+                } else if(param.type == "bool"){
+                    cppType = "bool";
+                } else if(param.type == "char"){
+                    cppType = "char";
+                } else {
+                    throw std::runtime_error("Unsupported parameter type: " + param.type);
+                }
+                if (i > 0) {
+                    signature += ", ";
+                }
+                signature += cppType + " gash_" + param.name;
+            }
+            signature += ")";
+            emitLine(signature);
+            emitStatement(*functionStmt->body);
+            return;
+        }
         throw std::runtime_error("Statement type not yet supported by CodeGenerator");
     }
     // Expression generation
@@ -67,6 +152,44 @@ namespace gash{
         if (const auto* node = dynamic_cast<const UnaryExpr*>(&expr)) { 
             return "(" + node->op + emitExpression(*node->operand) +")";
         }
+        if (const auto* node = dynamic_cast<const AssignmentExpr*>(&expr)) { 
+            std::string value = emitExpression(*node->value);
+            std::string target = emitExpression(*node->target);
+            return "(" + target + " = " + value + ")";
+        }
+        if (const auto* node = dynamic_cast<const CallExpr*>(&expr)) { 
+            std::string functionName = "gash_" + node->callee;
+            std::string result = functionName + "(";
+            for (size_t i = 0; i < node->arguments.size(); i++) {
+                const auto& argument = node->arguments[i];
+                if (i > 0) {
+                    result += ", ";
+                }
+                result += emitExpression(*argument);
+            }
+            result += ")";
+            return result;
+        }
+        if (const auto* node = dynamic_cast<const ListExpr*>(&expr)) { 
+            std::string type = node->elementType;
+            std::string cppType;
+            if(type == "int"){
+                cppType = "int";
+            } else if(type == "float"){
+                cppType = "double";
+            } else if(type == "string"){
+                cppType = "std::string";
+            } else if(type == "bool"){
+                cppType = "bool";
+            } else if(type == "char"){
+                cppType = "char";
+            } else {
+                throw std::runtime_error("Unsupported parameter type: " + type);
+            }
+            std::string size = emitExpression(*node->size);
+            std::string result = "gash::List<" + cppType + ">(" + size + ")";
+            return result;
+        }
         throw std::runtime_error("Expression type not yet supported by CodeGenerator");
     }
     // Escape a GASH string for C++ output.
@@ -91,6 +214,7 @@ namespace gash{
     }
     std::string CodeGenerator::generate(const Program &program){
         indentLevel = 0;
+        nextRepeatId = 0;
         output.str("");
         output.clear();
 

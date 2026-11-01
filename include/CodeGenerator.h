@@ -13,6 +13,7 @@ namespace gash
     private:
         std::ostringstream output;
         int indentLevel = 0;
+        int nextRepeatId = 0;
 
         void emitLine(const std::string &line);
         void emitStatement(const Stmt &stmt);
