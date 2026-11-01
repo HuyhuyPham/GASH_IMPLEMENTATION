@@ -95,20 +95,7 @@ namespace gash{
             std::string signature = "auto " + name + "(";
             for(size_t i = 0; i < functionStmt->parameters.size(); i++){
                 const auto& param = functionStmt->parameters[i];
-                std::string cppType;
-                if(param.type == "int"){
-                    cppType = "int";
-                } else if(param.type == "float"){
-                    cppType = "double";
-                } else if(param.type == "string"){
-                    cppType = "std::string";
-                } else if(param.type == "bool"){
-                    cppType = "bool";
-                } else if(param.type == "char"){
-                    cppType = "char";
-                } else {
-                    throw std::runtime_error("Unsupported parameter type: " + param.type);
-                }
+                std::string cppType = mapType(param.type);
                 if (i > 0) {
                     signature += ", ";
                 }
@@ -117,6 +104,24 @@ namespace gash{
             signature += ")";
             emitLine(signature);
             emitStatement(*functionStmt->body);
+            return;
+        }
+        if(const auto* expressionStmt = dynamic_cast<const ExpressionStmt*>(&stmt)){
+            if(const auto* callExpr = dynamic_cast<const CallExpr*>(expressionStmt->expression.get())){
+                if(callExpr->callee == "output"){
+                    int count = callExpr->arguments.size();
+                    if(count != 1){
+                        throw std::runtime_error("output() requires exactly one argument");
+                    }
+                    std::string argument = emitExpression(*callExpr->arguments[0]);
+                    emitLine("std::cout << " + argument + " << '\\n;'");
+                    return;
+                }
+            }
+            emitLine(emitExpression(*expressionStmt->expression) + ";");
+            return;
+        }
+        if(const auto* expressionStmt = dynamic_cast<const ExpressionStmt*>(&stmt)){
             return;
         }
         throw std::runtime_error("Statement type not yet supported by CodeGenerator");
@@ -158,6 +163,46 @@ namespace gash{
             return "(" + target + " = " + value + ")";
         }
         if (const auto* node = dynamic_cast<const CallExpr*>(&expr)) { 
+            if(node->callee == "input"){
+                if(!node->arguments.empty()){
+                    throw std::runtime_error("input() expects exactly 0 arguments");
+                }
+                return "gash::input()";
+            }
+            if(node->callee == "int"){
+                if(node->arguments.size() != 1){
+                    throw std::runtime_error("int() expects exactly 1 argument");
+                }
+                std::string argument = emitExpression(*node->arguments[0]);
+                return "gash::toInt(" + argument + ")";
+            }
+            if(node->callee == "float"){
+                if(node->arguments.size() != 1){
+                    throw std::runtime_error("float() expects exactly 1 argument");
+                }
+                std::string argument = emitExpression(*node->arguments[0]);
+                return "gash::toFloat(" + argument + ")";
+            }
+            if(node->callee == "string"){
+                if(node->arguments.size() != 1){
+                    throw std::runtime_error("string() expects exactly 1 argument");
+                }
+                std::string argument = emitExpression(*node->arguments[0]);
+                return "gash::toString(" + argument + ")";
+            }
+            if(node->callee == "inspect"){
+                if(node->arguments.size() != 1){
+                    throw std::runtime_error("inspect() expects exactly 1 argument");
+                }
+                std::string argument = emitExpression(*node->arguments[0]);
+                return "gash::inspect(" + argument + ")";
+            }
+            if(node->callee == "preview"){
+                if(node->arguments.size() > 0){
+                    throw std::runtime_error("preview() expects exactly 0 argument");
+                }
+                return "gash::preview()";
+            }
             std::string functionName = "gash_" + node->callee;
             std::string result = functionName + "(";
             for (size_t i = 0; i < node->arguments.size(); i++) {
@@ -172,23 +217,15 @@ namespace gash{
         }
         if (const auto* node = dynamic_cast<const ListExpr*>(&expr)) { 
             std::string type = node->elementType;
-            std::string cppType;
-            if(type == "int"){
-                cppType = "int";
-            } else if(type == "float"){
-                cppType = "double";
-            } else if(type == "string"){
-                cppType = "std::string";
-            } else if(type == "bool"){
-                cppType = "bool";
-            } else if(type == "char"){
-                cppType = "char";
-            } else {
-                throw std::runtime_error("Unsupported parameter type: " + type);
-            }
+            std::string cppType = mapType(type);
             std::string size = emitExpression(*node->size);
             std::string result = "gash::List<" + cppType + ">(" + size + ")";
             return result;
+        }
+        if (const auto* node = dynamic_cast<const IndexExpr*>(&expr)) { 
+            std::string collection = emitExpression(*node->collection);
+            std::string index = emitExpression(*node->index);
+            return "(" + collection + ").get(" + index + ")";
         }
         throw std::runtime_error("Expression type not yet supported by CodeGenerator");
     }
@@ -222,10 +259,20 @@ namespace gash{
         emitLine("#include <string>");
         emitLine("");
 
+        for (const auto& stmt : program.statements) {
+            if (dynamic_cast<const FunctionDeclStmt*>(stmt.get())) {
+                emitStatement(*stmt);
+                emitLine("");
+            }
+        }
+
         emitLine("int main(){");
         indentLevel++;
 
         for (const auto& stmt : program.statements) {
+            if (dynamic_cast<const FunctionDeclStmt*>(stmt.get())) {
+                continue;
+            }
             emitStatement(*stmt);
         }
 
@@ -235,5 +282,23 @@ namespace gash{
         emitLine("}");
 
         return output.str();
+    }
+    //helper
+    std::string CodeGenerator::mapType(const std::string& gashType){
+         if (gashType == "int") {
+            return "int";
+        } else if (gashType == "float") {
+            return "double";
+        } else if (gashType == "string") {
+            return "std::string";
+        } else if (gashType == "bool") {
+            return "bool";
+        } else if (gashType == "char") {
+            return "char";
+        }
+
+        throw std::runtime_error(
+            "Unsupported GASH type: " + gashType
+        );
     }
 }

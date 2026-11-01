@@ -19,6 +19,7 @@ namespace gash
         void emitStatement(const Stmt &stmt);
         std::string emitExpression(const Expr &expr) const;
         static std::string escapeString(const std::string &value);
+        static std::string mapType(const std::string& gashType);
 
     public:
         std::string generate(const Program &program);
