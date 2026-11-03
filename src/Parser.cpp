@@ -6,6 +6,47 @@
 
 namespace gash {
 
+namespace {
+
+// Converts an escape sequence into its character value.
+char decodeEscape(char c) {
+    switch (c) {
+        case 'n':  return '\n';
+        case 't':  return '\t';
+        case 'r':  return '\r';
+        case '0':  return '\0';
+        case '\\': return '\\';
+        case '"':  return '"';
+        case '\'': return '\'';
+
+        default:
+            throw std::runtime_error("Invalid escape sequence");
+    }
+}
+
+// Creates an AST node and records its source location.
+template <typename T, typename... Args>
+std::unique_ptr<T> makeLocated(
+    const Token& token,
+    Args&&... args
+) {
+    // Create the AST node.
+    auto node = std::make_unique<T>(
+        std::forward<Args>(args)...
+    );
+
+    // Record the token's source position.
+    node->location = {
+        static_cast<int>(token.line),
+        static_cast<int>(token.column)
+    };
+
+    // Return the completed node.
+    return node;
+}
+
+} // anonymous namespace
+
 // Stores the token list provided by the Lexer.
 Parser::Parser(std::vector<Token> tokens)
     : tokens_(std::move(tokens)) {
@@ -87,11 +128,19 @@ std::unique_ptr<Expr> Parser::parseAssignment() {
         // Parse the right expression recursively.
         auto right = parseAssignment();
 
-        // Create and return the assignment AST node.
-        return std::make_unique<AssignmentExpr>(
+        // Save the target's starting position.
+        SourceLocation start = left->location;
+
+        // Create the assignment expression.
+        auto expression = std::make_unique<AssignmentExpr>(
             std::move(left),
             std::move(right)
         );
+
+        // Record its location.
+        expression->location = start;
+
+        return expression;
     }
 
     // Return the expression if there is no assignment.
@@ -113,12 +162,19 @@ std::unique_ptr<Expr> Parser::parseLogicalOr() {
         // Parse the right expression.
         auto right = parseLogicalAnd();
 
+        
+        // Save the expression's starting location.
+        SourceLocation start = left->location;
+
         // Create a binary expression.
         left = std::make_unique<BinaryExpr>(
             op,
             std::move(left),
             std::move(right)
         );
+
+        // Record the location on the new node.
+        left->location = start;
     }
 
     // Return the completed expression.
@@ -141,12 +197,19 @@ std::unique_ptr<Expr> Parser::parseLogicalAnd() {
         // Parse the right expression.
         auto right = parseEquality();
 
+        
+        // Save the expression's starting location.
+        SourceLocation start = left->location;
+
         // Create a binary expression.
         left = std::make_unique<BinaryExpr>(
             op,
             std::move(left),
             std::move(right)
         );
+
+        // Record the location on the new node.
+        left->location = start;
     }
 
     // Return the completed expression.
@@ -169,12 +232,19 @@ std::unique_ptr<Expr> Parser::parseEquality() {
         // Parse the right expression.
         auto right = parseRelational();
 
+        
+        // Save the expression's starting location.
+        SourceLocation start = left->location;
+
         // Create a binary expression.
         left = std::make_unique<BinaryExpr>(
             op,
             std::move(left),
             std::move(right)
         );
+
+        // Record the location on the new node.
+        left->location = start;
     }
 
     // Return the completed expression.
@@ -199,12 +269,19 @@ std::unique_ptr<Expr> Parser::parseRelational() {
         // Parse the right expression.
         auto right = parseAdditive();
 
+        
+        // Save the expression's starting location.
+        SourceLocation start = left->location;
+
         // Create a binary expression.
         left = std::make_unique<BinaryExpr>(
             op,
             std::move(left),
             std::move(right)
         );
+
+        // Record the location on the new node.
+        left->location = start;
     }
 
     // Return the completed expression.
@@ -228,12 +305,19 @@ std::unique_ptr<Expr> Parser::parseMultiplicative() {
         // Parse the right expression.
         auto right = parseUnary();
 
+        
+        // Save the expression's starting location.
+        SourceLocation start = left->location;
+
         // Create a binary expression.
         left = std::make_unique<BinaryExpr>(
             op,
             std::move(left),
             std::move(right)
         );
+
+        // Record the location on the new node.
+        left->location = start;
     }
 
     // Return the completed expression.
@@ -256,12 +340,20 @@ std::unique_ptr<Expr> Parser::parseAdditive() {
         // Parse the right expression.
         auto right = parseMultiplicative();
 
+        
+        // Save the expression's starting location.
+        SourceLocation start = left->location;
+
         // Create a binary expression.
         left = std::make_unique<BinaryExpr>(
             op,
             std::move(left),
             std::move(right)
         );
+
+        // Record the location on the new node.
+        left->location = start;
+
     }
 
     // Return the completed expression.
@@ -275,16 +367,18 @@ std::unique_ptr<Expr> Parser::parseUnary() {
     if (peek().type == TokenType::MINUS ||
         peek().type == TokenType::BANG) {
 
-        // Read and consume the unary operator.
-        std::string op = advance().lexeme;
+        // Save and consume the unary operator.
+        const Token& opToken = advance();
+        std::string op = opToken.lexeme;
 
         // Parse the expression after the operator.
         auto operand = parseUnary();
 
         // Create and return the unary AST node.
-        return std::make_unique<UnaryExpr>(
+        return makeLocated<UnaryExpr>(
+            opToken,
             op,
-            std::move(operand)
+        std::move(operand)
         );
     }
 
@@ -307,12 +401,20 @@ std::unique_ptr<Expr> Parser::parsePower() {
         // Parse the right expression.
         auto right = parseUnary();
 
-        // Create and return the power AST node.
-        return std::make_unique<BinaryExpr>(
+        // Save the starting position.
+        SourceLocation start = left->location;
+
+        // Create the power expression.
+        auto expression = std::make_unique<BinaryExpr>(
             op,
             std::move(left),
             std::move(right)
         );
+
+        // Record its location.
+        expression->location = start;
+
+        return expression;
     }
 
     // Return the expression if there is no ^.
@@ -374,11 +476,17 @@ std::unique_ptr<Expr> Parser::parsePostfix() {
             // Consume ')'.
             advance();
 
-            // Create the function call AST node.
+            // Save the function name's starting position.
+            SourceLocation start = expression->location;
+
+            // Create the call expression.
             expression = std::make_unique<CallExpr>(
                 std::move(name),
                 std::move(arguments)
             );
+
+            // Record its location.
+            expression->location = start;
 
             continue;
         }
@@ -400,11 +508,17 @@ std::unique_ptr<Expr> Parser::parsePostfix() {
             // Consume ']'.
             advance();
 
-            // Create the list indexing AST node.
+            // Save the collection's starting position.
+            SourceLocation start = expression->location;
+
+            // Create the indexing expression.
             expression = std::make_unique<IndexExpr>(
                 std::move(expression),
                 std::move(index)
             );
+
+            // Record its location.
+            expression->location = start;
 
             continue;
         }
@@ -430,7 +544,7 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
         int value = std::stoi(token.lexeme);
 
         // Create and return the integer AST node.
-        return std::make_unique<IntegerExpr>(value);
+        return makeLocated<IntegerExpr>(token, value);
     }
 
     // Check whether the current token is a floating-point number.
@@ -443,7 +557,7 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
         double value = std::stod(token.lexeme);
 
         // Create and return the float AST node.
-        return std::make_unique<FloatExpr>(value);
+        return makeLocated<FloatExpr>(token, value);
     }
 
     // Check whether the current token is a string.
@@ -452,19 +566,43 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
         // Read and consume the string token.
         const Token& token = advance();
 
-        // Get the text from the token.
-        std::string value = token.lexeme;
+        // Get the original string text.
+        const std::string& text = token.lexeme;
 
-        // Remove surrounding double quotes if present.
-        if (value.size() >= 2 &&
-            value.front() == '"' &&
-            value.back() == '"') {
+        // Check the surrounding quotation marks.
+        if (text.size() < 2 ||
+            text.front() != '"' ||
+            text.back() != '"') {
 
-            value = value.substr(1, value.size() - 2);
+            throw std::runtime_error("Invalid string literal");
+        }
+
+        // Store the decoded string value.
+        std::string value;
+
+        // Read characters between the quotation marks.
+        for (std::size_t i = 1; i + 1 < text.size(); ++i) {
+
+            // Check for an escape sequence.
+            if (text[i] == '\\') {
+
+                // Make sure another character follows.
+                if (i + 2 >= text.size()) {
+                    throw std::runtime_error("Invalid string escape");
+                }
+
+                // Decode and store the escaped character.
+                value.push_back(decodeEscape(text[++i]));
+
+            } else {
+
+                // Store a normal character.
+                value.push_back(text[i]);
+            }
         }
 
         // Create and return the string AST node.
-        return std::make_unique<StringExpr>(std::move(value));
+        return makeLocated<StringExpr>(token, std::move(value));
     }
 
     // Check whether the current token is a Boolean literal.
@@ -477,30 +615,48 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
         bool value = (token.lexeme == "true");
 
         // Create and return the Boolean AST node.
-        return std::make_unique<BoolExpr>(value);
+        return makeLocated<BoolExpr>(token, value);
     }
 
-    // Check whether the current token is a character literal.
+    
+    // Check whether the current token is a character.
     if (peek().type == TokenType::CHAR_LITERAL) {
 
         // Read and consume the character token.
         const Token& token = advance();
 
-        // Check the character literal format.
-        if (token.lexeme.size() != 3 ||
-            token.lexeme.front() != '\'' ||
-            token.lexeme.back() != '\'') {
+        // Get the original character text.
+        const std::string& text = token.lexeme;
+
+        // Check the surrounding single quotes.
+        if (text.size() < 3 ||
+            text.front() != '\'' ||
+            text.back() != '\'') {
 
             throw std::runtime_error("Invalid character literal");
         }
 
-        // Get the character between the single quotes.
-        char value = token.lexeme[1];
+        // Store the character value.
+        char value;
+
+        // Normal character, such as 'A'.
+        if (text.size() == 3 && text[1] != '\\') {
+
+            value = text[1];
+
+        // Escaped character, such as '\n'.
+        } else if (text.size() == 4 && text[1] == '\\') {
+
+            value = decodeEscape(text[2]);
+
+        } else {
+
+            throw std::runtime_error("Invalid character literal");
+        }
 
         // Create and return the character AST node.
-        return std::make_unique<CharExpr>(value);
+        return makeLocated<CharExpr>(token, value);
     }
-
     
     // Check for an identifier or built-in function name.
     if (peek().type == TokenType::IDENTIFIER ||
@@ -526,14 +682,14 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
         }
 
         // Return the name for function call parsing.
-        return std::make_unique<VariableExpr>(token.lexeme);
+        return makeLocated<VariableExpr>(token, token.lexeme);
     }
 
     // Check whether the current token is a list constructor.
     if (peek().type == TokenType::TYPE_LIST) {
 
-        // Consume 'list'.
-        advance();
+        // Read and consume 'list'.
+        const Token& listToken = advance();
 
         // Check for '<'.
         if (peek().type != TokenType::LESS) {
@@ -605,7 +761,8 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
         advance();
 
         // Create and return the list AST node.
-        return std::make_unique<ListExpr>(
+        return makeLocated<ListExpr>(
+            listToken,
             std::move(elementType),
             std::move(size)
         );
@@ -614,8 +771,8 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
     // Check whether the current token is '('.
     if (peek().type == TokenType::LEFT_PAREN) {
 
-        // Consume the opening parenthesis.
-        advance();
+        // Save the opening parenthesis position.
+        const Token& openParen = advance();
 
         // Parse the expression inside the parentheses.
         auto expression = parseExpression();
@@ -627,6 +784,12 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
 
         // Consume the closing parenthesis.
         advance();
+
+        // Record the opening parenthesis position.
+        expression->location = {
+            static_cast<int>(openParen.line),
+            static_cast<int>(openParen.column)
+        };
 
         // Return the expression inside the parentheses.
         return expression;
