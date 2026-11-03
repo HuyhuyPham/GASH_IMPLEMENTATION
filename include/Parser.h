@@ -41,6 +41,18 @@ private:
     // Parses an expression.
     std::unique_ptr<Expr> parseExpression();
 
+    // Parses logical OR expressions using ||.
+    std::unique_ptr<Expr> parseLogicalOr();
+
+    // Parses logical AND expressions using &&.
+    std::unique_ptr<Expr> parseLogicalAnd();
+
+    // Parses equality operators == and !=.
+    std::unique_ptr<Expr> parseEquality();
+
+    // Parses comparison operators such as <, >, <= and >=.
+    std::unique_ptr<Expr> parseRelational();
+
     // Parses addition and subtraction.
     std::unique_ptr<Expr> parseAdditive();
 

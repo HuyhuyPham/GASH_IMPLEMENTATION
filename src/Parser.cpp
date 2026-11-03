@@ -44,8 +44,121 @@ const Token& Parser::advance() {
 // Parses an expression.
 std::unique_ptr<Expr> Parser::parseExpression() {
 
-    // Start with addition and subtraction.
-    return parseAdditive();
+    // Start with logical OR expressions.
+    return parseLogicalOr();
+}
+
+// Parses logical OR expressions using ||.
+std::unique_ptr<Expr> Parser::parseLogicalOr() {
+
+    // Parse the left expression.
+    auto left = parseLogicalAnd();
+
+    // Continue while the next token is ||.
+    while (peek().type == TokenType::OR_OR) {
+
+        // Read and consume the || operator.
+        std::string op = advance().lexeme;
+
+        // Parse the right expression.
+        auto right = parseLogicalAnd();
+
+        // Create a binary expression.
+        left = std::make_unique<BinaryExpr>(
+            op,
+            std::move(left),
+            std::move(right)
+        );
+    }
+
+    // Return the completed expression.
+    return left;
+}
+
+
+// Parses logical AND expressions using &&.
+std::unique_ptr<Expr> Parser::parseLogicalAnd() {
+
+    // Parse the left expression.
+    auto left = parseEquality();
+
+    // Continue while the next token is &&.
+    while (peek().type == TokenType::AND_AND) {
+
+        // Read and consume the && operator.
+        std::string op = advance().lexeme;
+
+        // Parse the right expression.
+        auto right = parseEquality();
+
+        // Create a binary expression.
+        left = std::make_unique<BinaryExpr>(
+            op,
+            std::move(left),
+            std::move(right)
+        );
+    }
+
+    // Return the completed expression.
+    return left;
+}
+
+// Parses equality operators == and !=.
+std::unique_ptr<Expr> Parser::parseEquality() {
+
+    // Parse the left expression.
+    auto left = parseRelational();
+
+    // Continue while the next token is == or !=.
+    while (peek().type == TokenType::EQUAL_EQUAL ||
+           peek().type == TokenType::BANG_EQUAL) {
+
+        // Read and consume the operator.
+        std::string op = advance().lexeme;
+
+        // Parse the right expression.
+        auto right = parseRelational();
+
+        // Create a binary expression.
+        left = std::make_unique<BinaryExpr>(
+            op,
+            std::move(left),
+            std::move(right)
+        );
+    }
+
+    // Return the completed expression.
+    return left;
+}
+
+// Parses comparison operators such as <, >, <= and >=.
+std::unique_ptr<Expr> Parser::parseRelational() {
+
+    // Parse the left expression.
+    auto left = parseAdditive();
+
+    // Continue while the next token is a comparison operator.
+    while (peek().type == TokenType::LESS ||
+           peek().type == TokenType::GREATER ||
+           peek().type == TokenType::LESS_EQUAL ||
+           peek().type == TokenType::GREATER_EQUAL) {
+
+        // Read the operator.
+        std::string op = advance().lexeme;
+
+        // Parse the right expression.
+        auto right = parseAdditive();
+
+        // Create a binary expression.
+        left = std::make_unique<BinaryExpr>(
+            op,
+            std::move(left),
+            std::move(right)
+        );
+    }
+
+    // Return the completed expression.
+    return left;
 }
 
 // Parses multiplication, division and modulo.
