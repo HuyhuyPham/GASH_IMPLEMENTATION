@@ -19,6 +19,9 @@ public:
     // Parses a complete GASH program.
     Program parseProgram();
 
+    // Parses one complete expression for testing.
+    std::unique_ptr<Expr> parseExpressionOnly();
+
 private:
     // Stores the tokens from the Lexer.
     std::vector<Token> tokens_;
@@ -40,6 +43,9 @@ private:
 
     // Parses an expression.
     std::unique_ptr<Expr> parseExpression();
+
+    // Parses assignment expressions using =.
+    std::unique_ptr<Expr> parseAssignment();
 
     // Parses logical OR expressions using ||.
     std::unique_ptr<Expr> parseLogicalOr();
@@ -64,6 +70,9 @@ private:
 
     // Parses exponentiation using the ^ operator.
     std::unique_ptr<Expr> parsePower();
+
+    // Parses function calls and list indexing.
+    std::unique_ptr<Expr> parsePostfix();
 
     // Parses basic expressions such as numbers and variables.
     std::unique_ptr<Expr> parsePrimary();

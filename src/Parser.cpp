@@ -44,8 +44,58 @@ const Token& Parser::advance() {
 // Parses an expression.
 std::unique_ptr<Expr> Parser::parseExpression() {
 
-    // Start with logical OR expressions.
-    return parseLogicalOr();
+    // Start with assignment expressions.
+    return parseAssignment();
+}
+
+// Parses one complete expression for testing.
+std::unique_ptr<Expr> Parser::parseExpressionOnly() {
+
+    // Parse the expression.
+    auto expression = parseExpression();
+
+    // Check that no unexpected tokens remain.
+    if (!isAtEnd()) {
+        throw std::runtime_error(
+            "Unexpected token after expression: " + peek().lexeme
+        );
+    }
+
+    // Return the completed AST.
+    return expression;
+}
+
+// Parses assignment expressions using =.
+std::unique_ptr<Expr> Parser::parseAssignment() {
+
+    // Parse the left expression.
+    auto left = parseLogicalOr();
+
+    // Check whether the next token is =.
+    if (peek().type == TokenType::ASSIGN) {
+
+        // Read and consume the assignment operator.
+        advance();
+
+        // Check whether the left side can be assigned to.
+        if (dynamic_cast<VariableExpr*>(left.get()) == nullptr &&
+            dynamic_cast<IndexExpr*>(left.get()) == nullptr) {
+
+            throw std::runtime_error("Invalid assignment target");
+        }
+
+        // Parse the right expression recursively.
+        auto right = parseAssignment();
+
+        // Create and return the assignment AST node.
+        return std::make_unique<AssignmentExpr>(
+            std::move(left),
+            std::move(right)
+        );
+    }
+
+    // Return the expression if there is no assignment.
+    return left;
 }
 
 // Parses logical OR expressions using ||.
@@ -246,7 +296,7 @@ std::unique_ptr<Expr> Parser::parseUnary() {
 std::unique_ptr<Expr> Parser::parsePower() {
 
     // Parse the left expression.
-    auto left = parsePrimary();
+    auto left = parsePostfix();
 
     // Check whether the next token is ^.
     if (peek().type == TokenType::CARET) {
@@ -267,6 +317,104 @@ std::unique_ptr<Expr> Parser::parsePower() {
 
     // Return the expression if there is no ^.
     return left;
+}
+
+// Parses function calls and list indexing.
+std::unique_ptr<Expr> Parser::parsePostfix() {
+
+    // Parse the first basic expression.
+    auto expression = parsePrimary();
+
+    // Continue checking for function calls or indexing.
+    while (true) {
+
+        // Check for a function call.
+        if (peek().type == TokenType::LEFT_PAREN) {
+
+            // Make sure the expression is a function name.
+            auto* variable =
+                dynamic_cast<VariableExpr*>(expression.get());
+
+            if (variable == nullptr) {
+                throw std::runtime_error("Invalid function call");
+            }
+
+            // Save the function name.
+            std::string name = variable->name;
+
+            // Consume '('.
+            advance();
+
+            // Store the function arguments.
+            std::vector<std::unique_ptr<Expr>> arguments;
+
+            // Check whether there are any arguments.
+            if (peek().type != TokenType::RIGHT_PAREN) {
+
+                while (true) {
+
+                    // Parse one argument.
+                    arguments.push_back(parseExpression());
+
+                    // Stop if there is no comma.
+                    if (peek().type != TokenType::COMMA) {
+                        break;
+                    }
+
+                    // Consume ','.
+                    advance();
+                }
+            }
+
+            // Check for ')'.
+            if (peek().type != TokenType::RIGHT_PAREN) {
+                throw std::runtime_error("Expected ')' after arguments");
+            }
+
+            // Consume ')'.
+            advance();
+
+            // Create the function call AST node.
+            expression = std::make_unique<CallExpr>(
+                std::move(name),
+                std::move(arguments)
+            );
+
+            continue;
+        }
+
+        // Check for list indexing.
+        if (peek().type == TokenType::LEFT_BRACKET) {
+
+            // Consume '['.
+            advance();
+
+            // Parse the index expression.
+            auto index = parseExpression();
+
+            // Check for ']'.
+            if (peek().type != TokenType::RIGHT_BRACKET) {
+                throw std::runtime_error("Expected ']'");
+            }
+
+            // Consume ']'.
+            advance();
+
+            // Create the list indexing AST node.
+            expression = std::make_unique<IndexExpr>(
+                std::move(expression),
+                std::move(index)
+            );
+
+            continue;
+        }
+
+        // Stop if there are no more postfix operations.
+        break;
+    }
+
+    // Return the completed expression.
+    return expression;
 }
 
 // Parses a basic expression.
@@ -353,17 +501,114 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
         return std::make_unique<CharExpr>(value);
     }
 
-    // Check whether the current token is an identifier.
-    if (peek().type == TokenType::IDENTIFIER) {
+    
+    // Check for an identifier or built-in function name.
+    if (peek().type == TokenType::IDENTIFIER ||
+        peek().type == TokenType::INSPECT ||
+        peek().type == TokenType::PREVIEW ||
+        peek().type == TokenType::INPUT ||
+        peek().type == TokenType::OUTPUT ||
+        peek().type == TokenType::EXTEND) {
 
-        // Read and consume the identifier token.
+        // Check whether the token is a built-in function.
+        bool isBuiltin =
+            peek().type != TokenType::IDENTIFIER;
+
+        // Read and consume the token.
         const Token& token = advance();
 
-        // Get the variable name from the token.
-        std::string name = token.lexeme;
+        // Built-in functions must be followed by '('.
+        if (isBuiltin &&
+            peek().type != TokenType::LEFT_PAREN) {
+            throw std::runtime_error(
+                "Expected '(' after built-in function"
+            );
+        }
 
-        // Create and return the variable AST node.
-        return std::make_unique<VariableExpr>(std::move(name));
+        // Return the name for function call parsing.
+        return std::make_unique<VariableExpr>(token.lexeme);
+    }
+
+    // Check whether the current token is a list constructor.
+    if (peek().type == TokenType::TYPE_LIST) {
+
+        // Consume 'list'.
+        advance();
+
+        // Check for '<'.
+        if (peek().type != TokenType::LESS) {
+            throw std::runtime_error("Expected '<' after list");
+        }
+
+        // Consume '<'.
+        advance();
+
+        // Store the list element type.
+        std::string elementType;
+
+        // Determine the element type.
+        switch (peek().type) {
+            case TokenType::TYPE_INT:
+                elementType = "int";
+                break;
+
+            case TokenType::TYPE_FLOAT:
+                elementType = "float";
+                break;
+
+            case TokenType::TYPE_CHAR:
+                elementType = "char";
+                break;
+
+            case TokenType::TYPE_STRING:
+                elementType = "string";
+                break;
+
+            case TokenType::TYPE_BOOL:
+                elementType = "bool";
+                break;
+
+            default:
+                throw std::runtime_error(
+                    "Expected a valid list element type"
+                );
+        }
+
+        // Consume the element type.
+        advance();
+
+        // Check for '>'.
+        if (peek().type != TokenType::GREATER) {
+            throw std::runtime_error("Expected '>' after list type");
+        }
+
+        // Consume '>'.
+        advance();
+
+        // Check for '('.
+        if (peek().type != TokenType::LEFT_PAREN) {
+            throw std::runtime_error("Expected '(' after list type");
+        }
+
+        // Consume '('.
+        advance();
+
+        // Parse the list size.
+        auto size = parseExpression();
+
+        // Check for ')'.
+        if (peek().type != TokenType::RIGHT_PAREN) {
+            throw std::runtime_error("Expected ')' after list size");
+        }
+
+        // Consume ')'.
+        advance();
+
+        // Create and return the list AST node.
+        return std::make_unique<ListExpr>(
+            std::move(elementType),
+            std::move(size)
+        );
     }
 
     // Check whether the current token is '('.
