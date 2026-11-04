@@ -65,6 +65,27 @@ private:
     // Parses skip statements.
     std::unique_ptr<Stmt> parseSkipStatement();
 
+    // Parses function declarations.
+    std::unique_ptr<Stmt> parseFunctionDeclaration();
+
+    // Parses guard statements.
+    std::unique_ptr<Stmt> parseGuardStatement();
+
+    // Parses lock statements.
+    std::unique_ptr<Stmt> parseLockStatement();
+
+    // Parses unlock statements.
+    std::unique_ptr<Stmt> parseUnlockStatement();
+
+    // Parses checkpoint statements.
+    std::unique_ptr<Stmt> parseCheckpointStatement();
+
+    // Parses restore statements.
+    std::unique_ptr<Stmt> parseRestoreStatement();
+
+    // Parses budget statements.
+    std::unique_ptr<Stmt> parseBudgetStatement();
+
     // Parses an expression.
     std::unique_ptr<Expr> parseExpression();
 
