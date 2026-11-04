@@ -82,6 +82,173 @@ const Token& Parser::advance() {
     return token;
 }
 
+// Parses a complete GASH program.
+Program Parser::parseProgram() {
+
+    // Create an empty program.
+    Program program;
+
+    // Keep parsing until the end of the file.
+    while (!isAtEnd()) {
+
+        // Parse one statement and add it to the program.
+        program.statements.push_back(parseStatement());
+    }
+
+    // Return the completed program.
+    return program;
+}
+
+
+
+// Parses a statement.
+std::unique_ptr<Stmt> Parser::parseStatement() {
+
+    // Check for a block statement.
+    if (peek().type == TokenType::LEFT_BRACE) {
+        return parseBlock();
+    }
+
+    // Check for a variable declaration.
+    if (peek().type == TokenType::VAR) {
+        return parseVarDeclaration();
+    }
+
+    // Check for a return statement.
+    if (peek().type == TokenType::RETURN) {
+        return parseReturnStatement();
+    }
+
+    // Save the statement's starting token.
+    const Token& startToken = peek();
+
+    // Parse an expression.
+    auto expression = parseExpression();
+
+    // Check for the semicolon.
+    if (peek().type != TokenType::SEMICOLON) {
+        throw std::runtime_error(
+            "Expected ';' after expression"
+        );
+    }
+
+    // Consume the semicolon.
+    advance();
+
+    // Create and return the expression statement.
+    return makeLocated<ExpressionStmt>(
+        startToken,
+        std::move(expression)
+    );
+}
+
+// Parses statements inside { }.
+std::unique_ptr<BlockStmt> Parser::parseBlock() {
+
+    // Read and consume the opening brace.
+    const Token& openBrace = advance();
+
+    // Store the statements inside the block.
+    std::vector<std::unique_ptr<Stmt>> statements;
+
+    // Continue until '}' or end of file.
+    while (peek().type != TokenType::RIGHT_BRACE &&
+           !isAtEnd()) {
+
+        // Parse one statement.
+        statements.push_back(parseStatement());
+    }
+
+    // Check for the closing brace.
+    if (peek().type != TokenType::RIGHT_BRACE) {
+        throw std::runtime_error(
+            "Expected '}' after block"
+        );
+    }
+
+    // Consume the closing brace.
+    advance();
+
+    // Create and return the block AST node.
+    return makeLocated<BlockStmt>(
+        openBrace,
+        std::move(statements)
+    );
+}
+
+// Parses variable declarations using var.
+std::unique_ptr<Stmt> Parser::parseVarDeclaration() {
+
+    // Read and consume the 'var' keyword.
+    const Token& varToken = advance();
+
+    // Check for a variable name.
+    if (peek().type != TokenType::IDENTIFIER) {
+        throw std::runtime_error(
+            "Expected variable name after 'var'"
+        );
+    }
+
+    // Read and consume the variable name.
+    std::string name = advance().lexeme;
+
+    // Check for the assignment operator.
+    if (peek().type != TokenType::ASSIGN) {
+        throw std::runtime_error(
+            "Expected '=' after variable name"
+        );
+    }
+
+    // Consume '='.
+    advance();
+
+    // Parse the initial value.
+    auto initializer = parseExpression();
+
+    // Check for the semicolon.
+    if (peek().type != TokenType::SEMICOLON) {
+        throw std::runtime_error(
+            "Expected ';' after variable declaration"
+        );
+    }
+
+    // Consume the semicolon.
+    advance();
+
+    // Create and return the variable declaration AST node.
+    return makeLocated<VarDeclStmt>(
+        varToken,
+        std::move(name),
+        std::move(initializer)
+    );
+}
+
+// Parses return statements.
+std::unique_ptr<Stmt> Parser::parseReturnStatement() {
+
+    // Read and consume the 'return' keyword.
+    const Token& returnToken = advance();
+
+    // Parse the return value.
+    auto value = parseExpression();
+
+    // Check for the semicolon.
+    if (peek().type != TokenType::SEMICOLON) {
+        throw std::runtime_error(
+            "Expected ';' after return statement"
+        );
+    }
+
+    // Consume the semicolon.
+    advance();
+
+    // Create and return the ReturnStmt AST node.
+    return makeLocated<ReturnStmt>(
+        returnToken,
+        std::move(value)
+    );
+}
+
 // Parses an expression.
 std::unique_ptr<Expr> Parser::parseExpression() {
 

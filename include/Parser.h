@@ -41,6 +41,15 @@ private:
     // Parses a statement.
     std::unique_ptr<Stmt> parseStatement();
 
+    // Parses statements inside { }.
+    std::unique_ptr<BlockStmt> parseBlock();
+
+    // Parses variable declarations using var.
+    std::unique_ptr<Stmt> parseVarDeclaration();
+
+    // Parses return statements.
+    std::unique_ptr<Stmt> parseReturnStatement();
+
     // Parses an expression.
     std::unique_ptr<Expr> parseExpression();
 
