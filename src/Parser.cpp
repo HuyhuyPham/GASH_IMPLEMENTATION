@@ -82,6 +82,820 @@ const Token& Parser::advance() {
     return token;
 }
 
+// Parses a complete GASH program.
+Program Parser::parseProgram() {
+
+    // Create an empty program.
+    Program program;
+
+    // Keep parsing until the end of the file.
+    while (!isAtEnd()) {
+
+        // Parse one statement and add it to the program.
+        program.statements.push_back(parseStatement());
+    }
+
+    // Return the completed program.
+    return program;
+}
+
+
+
+// Parses a statement.
+std::unique_ptr<Stmt> Parser::parseStatement() {
+
+    // Check for a block statement.
+    if (peek().type == TokenType::LEFT_BRACE) {
+        return parseBlock();
+    }
+
+    // Check for a variable declaration.
+    if (peek().type == TokenType::VAR) {
+        return parseVarDeclaration();
+    }
+
+    // Check for a return statement.
+    if (peek().type == TokenType::RETURN) {
+        return parseReturnStatement();
+    }
+
+    // Check for an if statement.
+    if (peek().type == TokenType::IF) {
+        return parseIfStatement();
+    }
+
+    // Check for a while statement.
+    if (peek().type == TokenType::WHILE) {
+        return parseWhileStatement();
+    }
+
+    // Check for a repeat statement.
+    if (peek().type == TokenType::REPEAT) {
+        return parseRepeatStatement();
+    }
+
+    // Check for an exit statement.
+    if (peek().type == TokenType::EXIT) {
+        return parseExitStatement();
+    }
+
+    // Check for a skip statement.
+    if (peek().type == TokenType::SKIP) {
+        return parseSkipStatement();
+    }
+
+    // Check for a function declaration.
+    if (peek().type == TokenType::FUNC) {
+        return parseFunctionDeclaration();
+    }
+
+    // Check for a guard statement.
+    if (peek().type == TokenType::GUARD) {
+        return parseGuardStatement();
+    }
+
+    // Check for a lock statement.
+    if (peek().type == TokenType::LOCK) {
+        return parseLockStatement();
+    }
+
+    // Check for an unlock statement.
+    if (peek().type == TokenType::UNLOCK) {
+        return parseUnlockStatement();
+    }
+
+    // Check for a checkpoint statement.
+    if (peek().type == TokenType::CHECKPOINT) {
+        return parseCheckpointStatement();
+    }
+
+    // Check for a restore statement.
+    if (peek().type == TokenType::RESTORE) {
+        return parseRestoreStatement();
+    }
+
+    // Check for a budget statement.
+    if (peek().type == TokenType::BUDGET) {
+        return parseBudgetStatement();
+    }
+
+    // Save the statement's starting token.
+    const Token& startToken = peek();
+
+    // Parse an expression.
+    auto expression = parseExpression();
+
+    // Check for the semicolon.
+    if (peek().type != TokenType::SEMICOLON) {
+        throw std::runtime_error(
+            "Expected ';' after expression"
+        );
+    }
+
+    // Consume the semicolon.
+    advance();
+
+    // Create and return the expression statement.
+    return makeLocated<ExpressionStmt>(
+        startToken,
+        std::move(expression)
+    );
+}
+
+// Parses statements inside { }.
+std::unique_ptr<BlockStmt> Parser::parseBlock() {
+
+    // Read and consume the opening brace.
+    const Token& openBrace = advance();
+
+    // Store the statements inside the block.
+    std::vector<std::unique_ptr<Stmt>> statements;
+
+    // Continue until '}' or end of file.
+    while (peek().type != TokenType::RIGHT_BRACE &&
+           !isAtEnd()) {
+
+        // Parse one statement.
+        statements.push_back(parseStatement());
+    }
+
+    // Check for the closing brace.
+    if (peek().type != TokenType::RIGHT_BRACE) {
+        throw std::runtime_error(
+            "Expected '}' after block"
+        );
+    }
+
+    // Consume the closing brace.
+    advance();
+
+    // Create and return the block AST node.
+    return makeLocated<BlockStmt>(
+        openBrace,
+        std::move(statements)
+    );
+}
+
+// Parses variable declarations using var.
+std::unique_ptr<Stmt> Parser::parseVarDeclaration() {
+
+    // Read and consume the 'var' keyword.
+    const Token& varToken = advance();
+
+    // Check for a variable name.
+    if (peek().type != TokenType::IDENTIFIER) {
+        throw std::runtime_error(
+            "Expected variable name after 'var'"
+        );
+    }
+
+    // Read and consume the variable name.
+    std::string name = advance().lexeme;
+
+    // Check for the assignment operator.
+    if (peek().type != TokenType::ASSIGN) {
+        throw std::runtime_error(
+            "Expected '=' after variable name"
+        );
+    }
+
+    // Consume '='.
+    advance();
+
+    // Parse the initial value.
+    auto initializer = parseExpression();
+
+    // Check for the semicolon.
+    if (peek().type != TokenType::SEMICOLON) {
+        throw std::runtime_error(
+            "Expected ';' after variable declaration"
+        );
+    }
+
+    // Consume the semicolon.
+    advance();
+
+    // Create and return the variable declaration AST node.
+    return makeLocated<VarDeclStmt>(
+        varToken,
+        std::move(name),
+        std::move(initializer)
+    );
+}
+
+// Parses return statements.
+std::unique_ptr<Stmt> Parser::parseReturnStatement() {
+
+    // Read and consume the 'return' keyword.
+    const Token& returnToken = advance();
+
+    // Parse the return value.
+    auto value = parseExpression();
+
+    // Check for the semicolon.
+    if (peek().type != TokenType::SEMICOLON) {
+        throw std::runtime_error(
+            "Expected ';' after return statement"
+        );
+    }
+
+    // Consume the semicolon.
+    advance();
+
+    // Create and return the ReturnStmt AST node.
+    return makeLocated<ReturnStmt>(
+        returnToken,
+        std::move(value)
+    );
+}
+
+// Parses if and otherwise statements.
+std::unique_ptr<Stmt> Parser::parseIfStatement() {
+
+    // Read and consume the 'if' keyword.
+    const Token& ifToken = advance();
+
+    // Check for '('.
+    if (peek().type != TokenType::LEFT_PAREN) {
+        throw std::runtime_error("Expected '(' after if");
+    }
+
+    // Consume '('.
+    advance();
+
+    // Parse the condition.
+    auto condition = parseExpression();
+
+    // Check for ')'.
+    if (peek().type != TokenType::RIGHT_PAREN) {
+        throw std::runtime_error("Expected ')' after if condition");
+    }
+
+    // Consume ')'.
+    advance();
+
+    // Check for the opening brace.
+    if (peek().type != TokenType::LEFT_BRACE) {
+        throw std::runtime_error("Expected '{' after if condition");
+    }
+
+    // Parse the if block.
+    auto thenBranch = parseBlock();
+
+    // Store the optional otherwise block.
+    std::unique_ptr<BlockStmt> elseBranch = nullptr;
+
+    // Check for 'otherwise'.
+    if (peek().type == TokenType::OTHERWISE) {
+
+        // Consume 'otherwise'.
+        advance();
+
+        // Check for the opening brace.
+        if (peek().type != TokenType::LEFT_BRACE) {
+            throw std::runtime_error("Expected '{' after otherwise");
+        }
+
+        // Parse the otherwise block.
+        elseBranch = parseBlock();
+    }
+
+    // Create and return the IfStmt AST node.
+    return makeLocated<IfStmt>(
+        ifToken,
+        std::move(condition),
+        std::move(thenBranch),
+        std::move(elseBranch)
+    );
+}
+
+// Parses while loop statements.
+std::unique_ptr<Stmt> Parser::parseWhileStatement() {
+
+    // Read and consume the 'while' keyword.
+    const Token& whileToken = advance();
+
+    // Check for '('.
+    if (peek().type != TokenType::LEFT_PAREN) {
+        throw std::runtime_error("Expected '(' after while");
+    }
+
+    // Consume '('.
+    advance();
+
+    // Parse the loop condition.
+    auto condition = parseExpression();
+
+    // Check for ')'.
+    if (peek().type != TokenType::RIGHT_PAREN) {
+        throw std::runtime_error(
+            "Expected ')' after while condition"
+        );
+    }
+
+    // Consume ')'.
+    advance();
+
+    // Check for the opening brace.
+    if (peek().type != TokenType::LEFT_BRACE) {
+        throw std::runtime_error(
+            "Expected '{' after while condition"
+        );
+    }
+
+    // Parse the loop body.
+    auto body = parseBlock();
+
+    // Create and return the WhileStmt AST node.
+    return makeLocated<WhileStmt>(
+        whileToken,
+        std::move(condition),
+        std::move(body)
+    );
+}
+
+// Parses repeat loop statements.
+std::unique_ptr<Stmt> Parser::parseRepeatStatement() {
+
+    // Read and consume the 'repeat' keyword.
+    const Token& repeatToken = advance();
+
+    // Check for '('.
+    if (peek().type != TokenType::LEFT_PAREN) {
+        throw std::runtime_error(
+            "Expected '(' after repeat"
+        );
+    }
+
+    // Consume '('.
+    advance();
+
+    // Parse the repeat count.
+    auto count = parseExpression();
+
+    // Check for ')'.
+    if (peek().type != TokenType::RIGHT_PAREN) {
+        throw std::runtime_error(
+            "Expected ')' after repeat count"
+        );
+    }
+
+    // Consume ')'.
+    advance();
+
+    // Check for the opening brace.
+    if (peek().type != TokenType::LEFT_BRACE) {
+        throw std::runtime_error(
+            "Expected '{' after repeat count"
+        );
+    }
+
+    // Parse the loop body.
+    auto body = parseBlock();
+
+    // Create and return the RepeatStmt AST node.
+    return makeLocated<RepeatStmt>(
+        repeatToken,
+        std::move(count),
+        std::move(body)
+    );
+}
+
+// Parses exit statements.
+std::unique_ptr<Stmt> Parser::parseExitStatement() {
+
+    // Read and consume the 'exit' keyword.
+    const Token& exitToken = advance();
+
+    // Check for the semicolon.
+    if (peek().type != TokenType::SEMICOLON) {
+        throw std::runtime_error(
+            "Expected ';' after exit"
+        );
+    }
+
+    // Consume the semicolon.
+    advance();
+
+    // Create and return the ExitStmt AST node.
+    return makeLocated<ExitStmt>(exitToken);
+}
+
+// Parses skip statements.
+std::unique_ptr<Stmt> Parser::parseSkipStatement() {
+
+    // Read and consume the 'skip' keyword.
+    const Token& skipToken = advance();
+
+    // Check for the semicolon.
+    if (peek().type != TokenType::SEMICOLON) {
+        throw std::runtime_error(
+            "Expected ';' after skip"
+        );
+    }
+
+    // Consume the semicolon.
+    advance();
+
+    // Create and return the SkipStmt AST node.
+    return makeLocated<SkipStmt>(skipToken);
+}
+
+// Parses function declarations.
+std::unique_ptr<Stmt> Parser::parseFunctionDeclaration() {
+
+    // Read and consume the 'func' keyword.
+    const Token& funcToken = advance();
+
+    // Check for the function name.
+    if (peek().type != TokenType::IDENTIFIER) {
+        throw std::runtime_error(
+            "Expected function name after 'func'"
+        );
+    }
+
+    // Read and save the function name.
+    std::string name = advance().lexeme;
+
+    // Check for '('.
+    if (peek().type != TokenType::LEFT_PAREN) {
+        throw std::runtime_error(
+            "Expected '(' after function name"
+        );
+    }
+
+    // Consume '('.
+    advance();
+
+    // Store the function parameters.
+    std::vector<Parameter> parameters;
+
+    // Check whether the function has parameters.
+    if (peek().type != TokenType::RIGHT_PAREN) {
+
+        while (true) {
+
+            // Check and save the parameter type.
+            std::string paramType;
+
+            switch (peek().type) {
+                case TokenType::TYPE_INT:
+                    paramType = "int";
+                    break;
+                case TokenType::TYPE_FLOAT:
+                    paramType = "float";
+                    break;
+                case TokenType::TYPE_CHAR:
+                    paramType = "char";
+                    break;
+                case TokenType::TYPE_STRING:
+                    paramType = "string";
+                    break;
+                case TokenType::TYPE_BOOL:
+                    paramType = "bool";
+                    break;
+                default:
+                    throw std::runtime_error(
+                        "Expected parameter type"
+                    );
+            }
+
+            // Consume the parameter type.
+            advance();
+
+            // Check for a parameter name.
+            if (peek().type != TokenType::IDENTIFIER) {
+                throw std::runtime_error(
+                    "Expected parameter name"
+                );
+            }
+
+            // Read and save the parameter name.
+            std::string paramName = advance().lexeme;
+
+            // Add the parameter with its type.
+            parameters.emplace_back(
+                std::move(paramName),
+                std::move(paramType)
+            );
+
+            // Stop if there is no comma.
+            if (peek().type != TokenType::COMMA) {
+                break;
+            }
+
+            // Consume ','.
+            advance();
+        }
+    }
+
+    // Check for ')'.
+    if (peek().type != TokenType::RIGHT_PAREN) {
+        throw std::runtime_error(
+            "Expected ')' after parameters"
+        );
+    }
+
+    // Consume ')'.
+    advance();
+
+    // Check for the function body.
+    if (peek().type != TokenType::LEFT_BRACE) {
+        throw std::runtime_error(
+            "Expected '{' after function declaration"
+        );
+    }
+
+    // Parse the function body.
+    auto body = parseBlock();
+
+    // Create and return the function AST node.
+    return makeLocated<FunctionDeclStmt>(
+        funcToken,
+        std::move(name),
+        std::move(parameters),
+        std::move(body)
+    );
+}
+
+// Parses guard statements.
+std::unique_ptr<Stmt> Parser::parseGuardStatement() {
+
+    // Read and consume the 'guard' keyword.
+    const Token& guardToken = advance();
+
+    // Parse the guard condition.
+    auto condition = parseExpression();
+
+    // Check for the semicolon.
+    if (peek().type != TokenType::SEMICOLON) {
+        throw std::runtime_error(
+            "Expected ';' after guard statement"
+        );
+    }
+
+    // Consume the semicolon.
+    advance();
+
+    // Create and return the GuardStmt AST node.
+    return makeLocated<GuardStmt>(
+        guardToken,
+        std::move(condition)
+    );
+}
+
+// Parses lock statements.
+std::unique_ptr<Stmt> Parser::parseLockStatement() {
+
+    // Read and consume the 'lock' keyword.
+    const Token& lockToken = advance();
+
+    // Check for a variable name.
+    if (peek().type != TokenType::IDENTIFIER) {
+        throw std::runtime_error(
+            "Expected variable name after 'lock'"
+        );
+    }
+
+    // Read and save the variable name.
+    std::string name = advance().lexeme;
+
+    // Check for the semicolon.
+    if (peek().type != TokenType::SEMICOLON) {
+        throw std::runtime_error(
+            "Expected ';' after lock statement"
+        );
+    }
+
+    // Consume the semicolon.
+    advance();
+
+    // Create and return the LockStmt AST node.
+    return makeLocated<LockStmt>(
+        lockToken,
+        std::move(name)
+    );
+}
+
+// Parses unlock statements.
+std::unique_ptr<Stmt> Parser::parseUnlockStatement() {
+
+    // Read and consume the 'unlock' keyword.
+    const Token& unlockToken = advance();
+
+    // Check for a variable name.
+    if (peek().type != TokenType::IDENTIFIER) {
+        throw std::runtime_error(
+            "Expected variable name after 'unlock'"
+        );
+    }
+
+    // Read and save the variable name.
+    std::string name = advance().lexeme;
+
+    // Check for the semicolon.
+    if (peek().type != TokenType::SEMICOLON) {
+        throw std::runtime_error(
+            "Expected ';' after unlock statement"
+        );
+    }
+
+    // Consume the semicolon.
+    advance();
+
+    // Create and return the UnlockStmt AST node.
+    return makeLocated<UnlockStmt>(
+        unlockToken,
+        std::move(name)
+    );
+}
+
+// Parses checkpoint statements.
+std::unique_ptr<Stmt> Parser::parseCheckpointStatement() {
+
+    // Read and consume the 'checkpoint' keyword.
+    const Token& checkpointToken = advance();
+
+    // Check for the checkpoint label.
+    if (peek().type != TokenType::IDENTIFIER) {
+        throw std::runtime_error(
+            "Expected checkpoint label"
+        );
+    }
+
+    // Read and save the checkpoint label.
+    std::string label = advance().lexeme;
+
+    // Check for '('.
+    if (peek().type != TokenType::LEFT_PAREN) {
+        throw std::runtime_error(
+            "Expected '(' after checkpoint label"
+        );
+    }
+
+    // Consume '('.
+    advance();
+
+    // Store the variable names.
+    std::vector<std::string> variables;
+
+    // Require at least one variable.
+    if (peek().type != TokenType::IDENTIFIER) {
+        throw std::runtime_error(
+            "Expected variable name in checkpoint"
+        );
+    }
+
+    // Parse the variable list.
+    while (true) {
+
+        // Read and save one variable name.
+        variables.push_back(advance().lexeme);
+
+        // Stop if there is no comma.
+        if (peek().type != TokenType::COMMA) {
+            break;
+        }
+
+        // Consume ','.
+        advance();
+
+        // Check for the next variable.
+        if (peek().type != TokenType::IDENTIFIER) {
+            throw std::runtime_error(
+                "Expected variable name after ','"
+            );
+        }
+    }
+
+    // Check for ')'.
+    if (peek().type != TokenType::RIGHT_PAREN) {
+        throw std::runtime_error(
+            "Expected ')' after checkpoint variables"
+        );
+    }
+
+    // Consume ')'.
+    advance();
+
+    // Check for the semicolon.
+    if (peek().type != TokenType::SEMICOLON) {
+        throw std::runtime_error(
+            "Expected ';' after checkpoint"
+        );
+    }
+
+    // Consume the semicolon.
+    advance();
+
+    // Create the checkpoint AST node.
+    return makeLocated<CheckpointStmt>(
+        checkpointToken,
+        std::move(label),
+        std::move(variables)
+    );
+}
+
+// Parses restore statements.
+std::unique_ptr<Stmt> Parser::parseRestoreStatement() {
+
+    // Read and consume the 'restore' keyword.
+    const Token& restoreToken = advance();
+
+    // Check for '('.
+    if (peek().type != TokenType::LEFT_PAREN) {
+        throw std::runtime_error(
+            "Expected '(' after restore"
+        );
+    }
+
+    // Consume '('.
+    advance();
+
+    // Check for the checkpoint label.
+    if (peek().type != TokenType::IDENTIFIER) {
+        throw std::runtime_error(
+            "Expected checkpoint label in restore"
+        );
+    }
+
+    // Read and save the checkpoint label.
+    std::string label = advance().lexeme;
+
+    // Check for ')'.
+    if (peek().type != TokenType::RIGHT_PAREN) {
+        throw std::runtime_error(
+            "Expected ')' after restore label"
+        );
+    }
+
+    // Consume ')'.
+    advance();
+
+    // Check for the semicolon.
+    if (peek().type != TokenType::SEMICOLON) {
+        throw std::runtime_error(
+            "Expected ';' after restore"
+        );
+    }
+
+    // Consume the semicolon.
+    advance();
+
+    // Create the restore AST node.
+    return makeLocated<RestoreStmt>(
+        restoreToken,
+        std::move(label)
+    );
+}
+
+// Parses budget statements.
+std::unique_ptr<Stmt> Parser::parseBudgetStatement() {
+
+    // Read and consume the 'budget' keyword.
+    const Token& budgetToken = advance();
+
+    // Check for '('.
+    if (peek().type != TokenType::LEFT_PAREN) {
+        throw std::runtime_error(
+            "Expected '(' after budget"
+        );
+    }
+
+    // Consume '('.
+    advance();
+
+    // Parse the budget limit.
+    auto limit = parseExpression();
+
+    // Check for ')'.
+    if (peek().type != TokenType::RIGHT_PAREN) {
+        throw std::runtime_error(
+            "Expected ')' after budget limit"
+        );
+    }
+
+    // Consume ')'.
+    advance();
+
+    // Check for the opening brace.
+    if (peek().type != TokenType::LEFT_BRACE) {
+        throw std::runtime_error(
+            "Expected '{' after budget limit"
+        );
+    }
+
+    // Parse the budget block.
+    auto body = parseBlock();
+
+    // Create and return the BudgetStmt AST node.
+    return makeLocated<BudgetStmt>(
+        budgetToken,
+        std::move(limit),
+        std::move(body)
+    );
+}
+
 // Parses an expression.
 std::unique_ptr<Expr> Parser::parseExpression() {
 
