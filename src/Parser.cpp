@@ -119,6 +119,31 @@ std::unique_ptr<Stmt> Parser::parseStatement() {
         return parseReturnStatement();
     }
 
+    // Check for an if statement.
+    if (peek().type == TokenType::IF) {
+        return parseIfStatement();
+    }
+
+    // Check for a while statement.
+    if (peek().type == TokenType::WHILE) {
+        return parseWhileStatement();
+    }
+
+    // Check for a repeat statement.
+    if (peek().type == TokenType::REPEAT) {
+        return parseRepeatStatement();
+    }
+
+    // Check for an exit statement.
+    if (peek().type == TokenType::EXIT) {
+        return parseExitStatement();
+    }
+
+    // Check for a skip statement.
+    if (peek().type == TokenType::SKIP) {
+        return parseSkipStatement();
+    }
+
     // Save the statement's starting token.
     const Token& startToken = peek();
 
@@ -247,6 +272,198 @@ std::unique_ptr<Stmt> Parser::parseReturnStatement() {
         returnToken,
         std::move(value)
     );
+}
+
+// Parses if and otherwise statements.
+std::unique_ptr<Stmt> Parser::parseIfStatement() {
+
+    // Read and consume the 'if' keyword.
+    const Token& ifToken = advance();
+
+    // Check for '('.
+    if (peek().type != TokenType::LEFT_PAREN) {
+        throw std::runtime_error("Expected '(' after if");
+    }
+
+    // Consume '('.
+    advance();
+
+    // Parse the condition.
+    auto condition = parseExpression();
+
+    // Check for ')'.
+    if (peek().type != TokenType::RIGHT_PAREN) {
+        throw std::runtime_error("Expected ')' after if condition");
+    }
+
+    // Consume ')'.
+    advance();
+
+    // Check for the opening brace.
+    if (peek().type != TokenType::LEFT_BRACE) {
+        throw std::runtime_error("Expected '{' after if condition");
+    }
+
+    // Parse the if block.
+    auto thenBranch = parseBlock();
+
+    // Store the optional otherwise block.
+    std::unique_ptr<BlockStmt> elseBranch = nullptr;
+
+    // Check for 'otherwise'.
+    if (peek().type == TokenType::OTHERWISE) {
+
+        // Consume 'otherwise'.
+        advance();
+
+        // Check for the opening brace.
+        if (peek().type != TokenType::LEFT_BRACE) {
+            throw std::runtime_error("Expected '{' after otherwise");
+        }
+
+        // Parse the otherwise block.
+        elseBranch = parseBlock();
+    }
+
+    // Create and return the IfStmt AST node.
+    return makeLocated<IfStmt>(
+        ifToken,
+        std::move(condition),
+        std::move(thenBranch),
+        std::move(elseBranch)
+    );
+}
+
+// Parses while loop statements.
+std::unique_ptr<Stmt> Parser::parseWhileStatement() {
+
+    // Read and consume the 'while' keyword.
+    const Token& whileToken = advance();
+
+    // Check for '('.
+    if (peek().type != TokenType::LEFT_PAREN) {
+        throw std::runtime_error("Expected '(' after while");
+    }
+
+    // Consume '('.
+    advance();
+
+    // Parse the loop condition.
+    auto condition = parseExpression();
+
+    // Check for ')'.
+    if (peek().type != TokenType::RIGHT_PAREN) {
+        throw std::runtime_error(
+            "Expected ')' after while condition"
+        );
+    }
+
+    // Consume ')'.
+    advance();
+
+    // Check for the opening brace.
+    if (peek().type != TokenType::LEFT_BRACE) {
+        throw std::runtime_error(
+            "Expected '{' after while condition"
+        );
+    }
+
+    // Parse the loop body.
+    auto body = parseBlock();
+
+    // Create and return the WhileStmt AST node.
+    return makeLocated<WhileStmt>(
+        whileToken,
+        std::move(condition),
+        std::move(body)
+    );
+}
+
+// Parses repeat loop statements.
+std::unique_ptr<Stmt> Parser::parseRepeatStatement() {
+
+    // Read and consume the 'repeat' keyword.
+    const Token& repeatToken = advance();
+
+    // Check for '('.
+    if (peek().type != TokenType::LEFT_PAREN) {
+        throw std::runtime_error(
+            "Expected '(' after repeat"
+        );
+    }
+
+    // Consume '('.
+    advance();
+
+    // Parse the repeat count.
+    auto count = parseExpression();
+
+    // Check for ')'.
+    if (peek().type != TokenType::RIGHT_PAREN) {
+        throw std::runtime_error(
+            "Expected ')' after repeat count"
+        );
+    }
+
+    // Consume ')'.
+    advance();
+
+    // Check for the opening brace.
+    if (peek().type != TokenType::LEFT_BRACE) {
+        throw std::runtime_error(
+            "Expected '{' after repeat count"
+        );
+    }
+
+    // Parse the loop body.
+    auto body = parseBlock();
+
+    // Create and return the RepeatStmt AST node.
+    return makeLocated<RepeatStmt>(
+        repeatToken,
+        std::move(count),
+        std::move(body)
+    );
+}
+
+// Parses exit statements.
+std::unique_ptr<Stmt> Parser::parseExitStatement() {
+
+    // Read and consume the 'exit' keyword.
+    const Token& exitToken = advance();
+
+    // Check for the semicolon.
+    if (peek().type != TokenType::SEMICOLON) {
+        throw std::runtime_error(
+            "Expected ';' after exit"
+        );
+    }
+
+    // Consume the semicolon.
+    advance();
+
+    // Create and return the ExitStmt AST node.
+    return makeLocated<ExitStmt>(exitToken);
+}
+
+// Parses skip statements.
+std::unique_ptr<Stmt> Parser::parseSkipStatement() {
+
+    // Read and consume the 'skip' keyword.
+    const Token& skipToken = advance();
+
+    // Check for the semicolon.
+    if (peek().type != TokenType::SEMICOLON) {
+        throw std::runtime_error(
+            "Expected ';' after skip"
+        );
+    }
+
+    // Consume the semicolon.
+    advance();
+
+    // Create and return the SkipStmt AST node.
+    return makeLocated<SkipStmt>(skipToken);
 }
 
 // Parses an expression.

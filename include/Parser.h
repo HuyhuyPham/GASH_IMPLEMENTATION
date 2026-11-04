@@ -50,6 +50,21 @@ private:
     // Parses return statements.
     std::unique_ptr<Stmt> parseReturnStatement();
 
+    // Parses if and otherwise statements.
+    std::unique_ptr<Stmt> parseIfStatement();
+
+    // Parses while loop statements.
+    std::unique_ptr<Stmt> parseWhileStatement();
+
+    // Parses repeat loop statements.
+    std::unique_ptr<Stmt> parseRepeatStatement();
+
+    // Parses exit statements.
+    std::unique_ptr<Stmt> parseExitStatement();
+
+    // Parses skip statements.
+    std::unique_ptr<Stmt> parseSkipStatement();
+
     // Parses an expression.
     std::unique_ptr<Expr> parseExpression();
 

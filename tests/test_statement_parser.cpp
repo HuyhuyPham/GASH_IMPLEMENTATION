@@ -182,6 +182,274 @@ int main() {
     assert(returnStmt->location.column == 15);
   }
 
+  // Test 6: If with otherwise.
+  {
+    Lexer lexer(
+        "if (x > 10) {"
+        "  output(x);"
+        "} otherwise {"
+        "  output(0);"
+        "}");
+
+    auto tokens = lexer.tokenize();
+
+    Parser parser(std::move(tokens));
+    Program program = parser.parseProgram();
+
+    // The program contains one if statement.
+    assert(program.statements.size() == 1);
+
+    auto* ifStmt = dynamic_cast<IfStmt*>(program.statements[0].get());
+
+    assert(ifStmt != nullptr);
+
+    // Check the condition.
+    auto* condition = dynamic_cast<BinaryExpr*>(ifStmt->condition.get());
+
+    assert(condition != nullptr);
+    assert(condition->op == ">");
+
+    // Check the if block.
+    assert(ifStmt->thenBranch != nullptr);
+    assert(ifStmt->thenBranch->statements.size() == 1);
+
+    // Check the otherwise block.
+    assert(ifStmt->elseBranch != nullptr);
+    assert(ifStmt->elseBranch->statements.size() == 1);
+
+    // Check the if statement's location.
+    assert(ifStmt->location.line == 1);
+    assert(ifStmt->location.column == 1);
+  }
+
+  // Test 7: If without otherwise.
+  {
+    Lexer lexer("if (x > 5) { output(x); }");
+
+    auto tokens = lexer.tokenize();
+
+    Parser parser(std::move(tokens));
+    Program program = parser.parseProgram();
+
+    assert(program.statements.size() == 1);
+
+    auto* ifStmt = dynamic_cast<IfStmt*>(program.statements[0].get());
+
+    assert(ifStmt != nullptr);
+
+    // The if block exists.
+    assert(ifStmt->thenBranch != nullptr);
+
+    // No otherwise block was provided.
+    assert(ifStmt->elseBranch == nullptr);
+  }
+
+  // Test 8: While loop.
+  {
+    Lexer lexer(
+        "while (x < 10) {"
+        "  x = x + 1;"
+        "}");
+
+    auto tokens = lexer.tokenize();
+
+    Parser parser(std::move(tokens));
+    Program program = parser.parseProgram();
+
+    // Check the program contains one while statement.
+    assert(program.statements.size() == 1);
+
+    auto* whileStmt = dynamic_cast<WhileStmt*>(program.statements[0].get());
+
+    assert(whileStmt != nullptr);
+
+    // Check the loop condition.
+    auto* condition = dynamic_cast<BinaryExpr*>(whileStmt->condition.get());
+
+    assert(condition != nullptr);
+    assert(condition->op == "<");
+
+    // Check the loop body.
+    assert(whileStmt->body != nullptr);
+    assert(whileStmt->body->statements.size() == 1);
+
+    // Check the assignment inside the loop.
+    auto* statement =
+        dynamic_cast<ExpressionStmt*>(whileStmt->body->statements[0].get());
+
+    assert(statement != nullptr);
+
+    auto* assignment =
+        dynamic_cast<AssignmentExpr*>(statement->expression.get());
+
+    assert(assignment != nullptr);
+
+    // Check the source location.
+    assert(whileStmt->location.line == 1);
+    assert(whileStmt->location.column == 1);
+  }
+
+  // Test 9: While loop with an empty body.
+  {
+    Lexer lexer("while (true) {}");
+
+    auto tokens = lexer.tokenize();
+
+    Parser parser(std::move(tokens));
+    Program program = parser.parseProgram();
+
+    assert(program.statements.size() == 1);
+
+    auto* whileStmt = dynamic_cast<WhileStmt*>(program.statements[0].get());
+
+    assert(whileStmt != nullptr);
+
+    // Check the Boolean condition.
+    auto* condition = dynamic_cast<BoolExpr*>(whileStmt->condition.get());
+
+    assert(condition != nullptr);
+    assert(condition->value == true);
+
+    // Check the empty block.
+    assert(whileStmt->body != nullptr);
+    assert(whileStmt->body->statements.empty());
+  }
+
+  // Test 10: Repeat loop with an expression count.
+  {
+    Lexer lexer(
+        "repeat (2 + 3) {"
+        "  output(\"Hello\");"
+        "}");
+
+    auto tokens = lexer.tokenize();
+
+    Parser parser(std::move(tokens));
+    Program program = parser.parseProgram();
+
+    // Check the program contains one repeat statement.
+    assert(program.statements.size() == 1);
+
+    auto* repeatStmt = dynamic_cast<RepeatStmt*>(program.statements[0].get());
+
+    assert(repeatStmt != nullptr);
+
+    // Check the repeat count expression.
+    auto* count = dynamic_cast<BinaryExpr*>(repeatStmt->count.get());
+
+    assert(count != nullptr);
+    assert(count->op == "+");
+
+    // Check the loop body.
+    assert(repeatStmt->body != nullptr);
+    assert(repeatStmt->body->statements.size() == 1);
+
+    // Check the statement inside the loop.
+    auto* statement =
+        dynamic_cast<ExpressionStmt*>(repeatStmt->body->statements[0].get());
+
+    assert(statement != nullptr);
+
+    // Check the output function call.
+    auto* call = dynamic_cast<CallExpr*>(statement->expression.get());
+
+    assert(call != nullptr);
+    assert(call->callee == "output");
+    assert(call->arguments.size() == 1);
+
+    // Check the source location.
+    assert(repeatStmt->location.line == 1);
+    assert(repeatStmt->location.column == 1);
+  }
+
+  // Test 11: Repeat loop with an empty body.
+  {
+    Lexer lexer("repeat (5) {}");
+
+    auto tokens = lexer.tokenize();
+
+    Parser parser(std::move(tokens));
+    Program program = parser.parseProgram();
+
+    assert(program.statements.size() == 1);
+
+    auto* repeatStmt = dynamic_cast<RepeatStmt*>(program.statements[0].get());
+
+    assert(repeatStmt != nullptr);
+
+    // Check the repeat count.
+    auto* count = dynamic_cast<IntegerExpr*>(repeatStmt->count.get());
+
+    assert(count != nullptr);
+    assert(count->value == 5);
+
+    // Check the empty body.
+    assert(repeatStmt->body != nullptr);
+    assert(repeatStmt->body->statements.empty());
+  }
+
+  // Test 12: Exit statement inside a while loop.
+  {
+    Lexer lexer("while (true) { exit; }");
+
+    auto tokens = lexer.tokenize();
+
+    Parser parser(std::move(tokens));
+    Program program = parser.parseProgram();
+
+    // Check the while statement.
+    assert(program.statements.size() == 1);
+
+    auto* whileStmt = dynamic_cast<WhileStmt*>(program.statements[0].get());
+
+    assert(whileStmt != nullptr);
+
+    // Check the loop body.
+    assert(whileStmt->body != nullptr);
+    assert(whileStmt->body->statements.size() == 1);
+
+    // Check the exit statement.
+    auto* exitStmt =
+        dynamic_cast<ExitStmt*>(whileStmt->body->statements[0].get());
+
+    assert(exitStmt != nullptr);
+
+    // Check the source location.
+    assert(exitStmt->location.line == 1);
+    assert(exitStmt->location.column == 16);
+  }
+
+  // Test 13: Skip statement inside a repeat loop.
+  {
+    Lexer lexer("repeat (5) { skip; }");
+
+    auto tokens = lexer.tokenize();
+
+    Parser parser(std::move(tokens));
+    Program program = parser.parseProgram();
+
+    // Check the repeat statement.
+    assert(program.statements.size() == 1);
+
+    auto* repeatStmt = dynamic_cast<RepeatStmt*>(program.statements[0].get());
+
+    assert(repeatStmt != nullptr);
+
+    // Check the loop body.
+    assert(repeatStmt->body != nullptr);
+    assert(repeatStmt->body->statements.size() == 1);
+
+    // Check the skip statement.
+    auto* skipStmt =
+        dynamic_cast<SkipStmt*>(repeatStmt->body->statements[0].get());
+
+    assert(skipStmt != nullptr);
+
+    // Check the source location.
+    assert(skipStmt->location.line == 1);
+    assert(skipStmt->location.column == 14);
+  }
+
   std::cout << "Basic statement parser tests passed!\n";
 
   return 0;
