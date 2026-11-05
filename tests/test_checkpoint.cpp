@@ -147,6 +147,43 @@ bool throwsRuntimeError(F&& fn) {
   return false;
 }
 
+// Simulates an Environment returning invalid snapshots.
+class InvalidCaptureEnvironment final : public CheckpointEnvironment {
+ public:
+  enum class Fault { Incomplete, WrongOrder };
+
+  explicit InvalidCaptureEnvironment(Fault fault) : fault_(fault) {}
+
+  // Returns an intentionally invalid snapshot.
+  std::vector<VariableSnapshot> captureVariables(
+      const std::vector<std::string>& names) const override {
+    (void)names;
+
+    VariableSnapshot x{"x", std::any{10}, "int", 1, true};
+
+    VariableSnapshot y{"y", std::any{20}, "int", 1, true};
+
+    // Return only x instead of x and y.
+    if (fault_ == Fault::Incomplete) {
+      return {x};
+    }
+
+    // Return the variables in the wrong order.
+    return {y, x};
+  }
+
+  // Not used in these tests.
+  void restoreVariablesAtomically(
+      const std::vector<VariableSnapshot>& variables) override {
+    (void)variables;
+
+    throw std::runtime_error("Restore not supported by test Environment");
+  }
+
+ private:
+  Fault fault_;
+};
+
 }  // namespace
 
 int main() {
@@ -272,6 +309,135 @@ int main() {
     env.erase("y");
     assert(throwsRuntimeError([&] { manager.restore("deleted", env); }));
     assert(env.getInt("x") == 100);
+  }
+
+  // Test 10: Failed checkpoint creation must not save partial data.
+  {
+    FakeEnvironment env;
+
+    // Create one variable.
+    env.defineInt("x", 10);
+
+    CheckpointManager manager;
+
+    // Try to save two variables, but "missing" does not exist.
+    assert(throwsRuntimeError(
+        [&] { manager.save("backup", {"x", "missing"}, env); }));
+
+    // Create the missing variable.
+    env.defineInt("missing", 20);
+
+    // The same label should still be available.
+    manager.save("backup", {"x", "missing"}, env);
+
+    // Change both variables.
+    env.setInt("x", 100);
+    env.setInt("missing", 200);
+
+    // Restore the saved values.
+    manager.restore("backup", env);
+
+    // Check that both original values are restored.
+    assert(env.getInt("x") == 10);
+    assert(env.getInt("missing") == 20);
+  }
+
+  // Test 11: Failed restore must preserve all values and allow retry.
+  {
+    FakeEnvironment env;
+
+    // Create two variables.
+    env.defineInt("x", 10);
+    env.defineInt("y", 20);
+
+    CheckpointManager manager;
+
+    // Save the original values.
+    manager.save("start", {"x", "y"}, env);
+
+    // Change both variables.
+    env.setInt("x", 100);
+    env.setInt("y", 200);
+
+    // Change y's scope to make restoration invalid.
+    env.setScope("y", 2);
+
+    // Restore should fail.
+    assert(throwsRuntimeError([&] { manager.restore("start", env); }));
+
+    // Neither variable should have changed.
+    assert(env.getInt("x") == 100);
+    assert(env.getInt("y") == 200);
+
+    // Restore the original scope identity.
+    env.setScope("y", 1);
+
+    // Try restoration again.
+    manager.restore("start", env);
+
+    // Both variables should now be restored.
+    assert(env.getInt("x") == 10);
+    assert(env.getInt("y") == 20);
+  }
+
+  // Test 12: Reject an incomplete snapshot.
+  {
+    InvalidCaptureEnvironment badEnv(
+        InvalidCaptureEnvironment::Fault::Incomplete);
+
+    CheckpointManager manager;
+
+    // Request x and y, but only x is returned.
+    assert(throwsRuntimeError(
+        [&] { manager.save("backup", {"x", "y"}, badEnv); }));
+
+    // Create a valid Environment.
+    FakeEnvironment env;
+    env.defineInt("x", 10);
+    env.defineInt("y", 20);
+
+    // The failed save must not reserve the label.
+    manager.save("backup", {"x", "y"}, env);
+
+    // Modify the variables.
+    env.setInt("x", 100);
+    env.setInt("y", 200);
+
+    // Restore the valid checkpoint.
+    manager.restore("backup", env);
+
+    assert(env.getInt("x") == 10);
+    assert(env.getInt("y") == 20);
+  }
+
+  // Test 13: Reject snapshots with incorrect variable order.
+  {
+    InvalidCaptureEnvironment badEnv(
+        InvalidCaptureEnvironment::Fault::WrongOrder);
+
+    CheckpointManager manager;
+
+    // Request x followed by y.
+    assert(throwsRuntimeError(
+        [&] { manager.save("ordered", {"x", "y"}, badEnv); }));
+
+    // Create a valid Environment.
+    FakeEnvironment env;
+    env.defineInt("x", 10);
+    env.defineInt("y", 20);
+
+    // Save again using the same checkpoint label.
+    manager.save("ordered", {"x", "y"}, env);
+
+    // Change both values.
+    env.setInt("x", 50);
+    env.setInt("y", 60);
+
+    // Restore the correctly ordered snapshot.
+    manager.restore("ordered", env);
+
+    assert(env.getInt("x") == 10);
+    assert(env.getInt("y") == 20);
   }
 
   std::cout << "Checkpoint helper tests passed!\n";

@@ -786,6 +786,62 @@ int main() {
     assert(budgetStmt->body->statements.empty());
   }
 
+  // Test 24: Explicit type conversion calls.
+  {
+    Lexer lexer(
+        "var age = int(input());"
+        "var price = float(\"3.14\");"
+        "var text = string(100);");
+
+    auto tokens = lexer.tokenize();
+
+    Parser parser(std::move(tokens));
+    Program program = parser.parseProgram();
+
+    // Check the number of statements.
+    assert(program.statements.size() == 3);
+
+    // Check int(input()).
+    auto* age = dynamic_cast<VarDeclStmt*>(program.statements[0].get());
+
+    assert(age != nullptr);
+
+    auto* intCall = dynamic_cast<CallExpr*>(age->initializer.get());
+
+    assert(intCall != nullptr);
+    assert(intCall->callee == "int");
+    assert(intCall->arguments.size() == 1);
+
+    // Check the nested input() call.
+    auto* inputCall = dynamic_cast<CallExpr*>(intCall->arguments[0].get());
+
+    assert(inputCall != nullptr);
+    assert(inputCall->callee == "input");
+    assert(inputCall->arguments.empty());
+
+    // Check float("3.14").
+    auto* price = dynamic_cast<VarDeclStmt*>(program.statements[1].get());
+
+    assert(price != nullptr);
+
+    auto* floatCall = dynamic_cast<CallExpr*>(price->initializer.get());
+
+    assert(floatCall != nullptr);
+    assert(floatCall->callee == "float");
+    assert(floatCall->arguments.size() == 1);
+
+    // Check string(100).
+    auto* text = dynamic_cast<VarDeclStmt*>(program.statements[2].get());
+
+    assert(text != nullptr);
+
+    auto* stringCall = dynamic_cast<CallExpr*>(text->initializer.get());
+
+    assert(stringCall != nullptr);
+    assert(stringCall->callee == "string");
+    assert(stringCall->arguments.size() == 1);
+  }
+
   std::cout << "Basic statement parser tests passed!\n";
 
   return 0;
