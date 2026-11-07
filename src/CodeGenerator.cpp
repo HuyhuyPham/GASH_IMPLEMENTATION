@@ -318,7 +318,7 @@ namespace gash
             {
                 result += "\\\\";
             }
-            else if (value[i] == '""')
+            else if (value[i] == '"')
             {
                 result += "\\\"";
             }
@@ -367,7 +367,7 @@ namespace gash
 
         for (const auto &stmt : program.statements)
         {
-            if (dynamic_cast<const FunctionDeclStmt *>(stmt.get()))
+            if (!dynamic_cast<const FunctionDeclStmt *>(stmt.get()))
             {
                emitStatement(*stmt);
             }
