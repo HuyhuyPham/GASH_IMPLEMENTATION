@@ -15,8 +15,9 @@ add_library(gash_core
     src/Lexer.cpp
     src/Parser.cpp
     src/CodeGenerator.cpp
+    runtime/Inspect.cpp
+    runtime/Preview.cpp
 )
-
 target_include_directories(gash_core
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -47,5 +48,19 @@ if(BUILD_TESTING)
     add_executable(test_list tests/test_list.cpp)
     target_link_libraries(test_list PRIVATE gash_core)
     add_test(NAME ListTests COMMAND test_list)
+
+    # A5 - Inspect and Preview tests
+    add_executable(test_inspect_preview
+        tests/test_inspect_preview.cpp
+    )
+
+    target_link_libraries(test_inspect_preview
+        PRIVATE gash_core
+    )
+
+    add_test(
+        NAME InspectPreviewTests
+        COMMAND test_inspect_preview
+    )
 
 endif()
