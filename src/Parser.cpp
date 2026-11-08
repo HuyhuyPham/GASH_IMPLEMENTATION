@@ -1472,13 +1472,16 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
         return makeLocated<CharExpr>(token, value);
     }
     
-    // Check for an identifier or built-in function name.
+    // Check for an identifier, built-in function or type conversion.
     if (peek().type == TokenType::IDENTIFIER ||
         peek().type == TokenType::INSPECT ||
         peek().type == TokenType::PREVIEW ||
         peek().type == TokenType::INPUT ||
         peek().type == TokenType::OUTPUT ||
-        peek().type == TokenType::EXTEND) {
+        peek().type == TokenType::EXTEND ||
+        peek().type == TokenType::TYPE_INT ||
+        peek().type == TokenType::TYPE_FLOAT ||
+        peek().type == TokenType::TYPE_STRING) {
 
         // Check whether the token is a built-in function.
         bool isBuiltin =
