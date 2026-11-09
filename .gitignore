@@ -1,2 +1,5 @@
 # Ignore the compiled AST test executable
 /tests/ast_test
+/build-mac/
+/examples/*.out
+/examples/*.cpp
