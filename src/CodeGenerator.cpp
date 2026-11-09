@@ -21,11 +21,24 @@ namespace gash
         if (const auto *decl = dynamic_cast<const VarDeclStmt *>(&stmt))
         {
             emitLine("gash::BudgetScope::tick();");
+
             if (!decl->initializer)
             {
-                throw std::runtime_error("Variable declaration requires an initializer");
+                throw std::runtime_error(
+                    "Variable declaration requires an initializer");
             }
-            emitLine("auto gash_" + decl->name + " = " + emitExpression(*decl->initializer) + ";");
+
+            // 1. Declare and initialise the variable
+            emitLine(
+                "auto gash_" + decl->name + " = " +
+                emitExpression(*decl->initializer) + ";");
+
+            // 2. Register the variable in the runtime environment
+            emitLine(
+                "gash_env.bindReference(\"" +
+                escapeString(decl->name) +
+                "\", gash_" + decl->name + ");");
+
             return;
         }
         if (const auto *exprStmt = dynamic_cast<const ExpressionStmt *>(&stmt))
@@ -69,7 +82,7 @@ namespace gash
             emitLine("}");
             if (ifStmt->elseBranch != nullptr)
             {
-                emitLine("else");
+                emitLine("else{");
                 indentLevel++;
                 emitStatement(*ifStmt->elseBranch);
                 indentLevel--;
@@ -173,6 +186,40 @@ namespace gash
             emitLine("}");
             indentLevel--;
             emitLine("}");
+            return;
+        }
+        if (const auto *checkpoint =
+                dynamic_cast<const CheckpointStmt *>(&stmt))
+        {
+
+            emitLine("gash::BudgetScope::tick();");
+
+            std::string names = "{";
+            for (size_t i = 0; i < checkpoint->variables.size(); ++i)
+            {
+                if (i > 0)
+                    names += ", ";
+                names += "\"" + escapeString(checkpoint->variables[i]) + "\"";
+            }
+            names += "}";
+
+            emitLine(
+                "gash_checkpoints.save(\"" +
+                escapeString(checkpoint->label) +
+                "\", " + names + ", gash_env);");
+            return;
+        }
+
+        if (const auto *restore =
+                dynamic_cast<const RestoreStmt *>(&stmt))
+        {
+
+            emitLine("gash::BudgetScope::tick();");
+
+            emitLine(
+                "gash_checkpoints.restore(\"" +
+                escapeString(restore->label) +
+                "\", gash_env);");
             return;
         }
         throw std::runtime_error("Statement type not yet supported by CodeGenerator");
@@ -351,6 +398,8 @@ namespace gash
         emitLine("#include <iostream>");
         emitLine("#include <string>");
         emitLine("#include \"Budget.h\"");
+        emitLine("#include \"Environment.h\"");
+        emitLine("#include \"Checkpoint.h\"");
         emitLine("");
 
         for (const auto &stmt : program.statements)
@@ -365,11 +414,14 @@ namespace gash
         emitLine("int main(){");
         indentLevel++;
 
+        emitLine("gash::Environment gash_env;");
+        emitLine("gash::CheckpointManager gash_checkpoints;");
+
         for (const auto &stmt : program.statements)
         {
             if (!dynamic_cast<const FunctionDeclStmt *>(stmt.get()))
             {
-               emitStatement(*stmt);
+                emitStatement(*stmt);
             }
         }
 

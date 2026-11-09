@@ -1,5 +1,5 @@
 #ifndef CODEGENERATOR_H
-#define CODEFENERATOR_H
+#define CODEGENERATOR_H
 
 #include <string>
 #include <sstream>
