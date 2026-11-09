@@ -63,4 +63,17 @@ if(BUILD_TESTING)
         COMMAND test_inspect_preview
     )
 
+    add_executable(test_auto_cleanup
+        tests/test_auto_cleanup.cpp
+    )
+
+    target_link_libraries(test_auto_cleanup
+        PRIVATE gash_core
+    )
+
+    add_test(
+        NAME AutoCleanupTests
+        COMMAND test_auto_cleanup
+    )
+
 endif()
