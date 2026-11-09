@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 #ifndef GASH_SEMANTIC_H
 #define GASH_SEMANTIC_H
 
@@ -115,3 +116,6 @@ private:
 } // namespace gash
 
 #endif // GASH_SEMANTIC_H
+=======
+a
+>>>>>>> origin/atq
