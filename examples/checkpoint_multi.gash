@@ -1,0 +1,21 @@
+
+var x = 10;
+var y = 20;
+
+checkpoint saved(x, y);
+
+x = 100;
+y = 200;
+
+restore(saved);
+
+output(x);
+output(y);
+
+x = 300;
+y = 400;
+
+restore(saved);
+
+output(x);
+output(y);

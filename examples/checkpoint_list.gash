@@ -1,0 +1,15 @@
+
+var numbers = list<int>(3);
+
+numbers[0] = 7;
+numbers[1] = 8;
+
+checkpoint saved(numbers);
+
+numbers[0] = 99;
+numbers[1] = 100;
+
+restore(saved);
+
+output(numbers[0]);
+output(numbers[1]);
