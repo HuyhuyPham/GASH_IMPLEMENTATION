@@ -1,0 +1,15 @@
+var i = 0;
+while (i < 6) {
+    i = i + 1;
+    if (i == 2) {
+        skip;
+    }
+    if (i == 5) {
+        exit;
+    }
+    output(i);
+}
+
+repeat (3) {
+    output("repeat step");
+}

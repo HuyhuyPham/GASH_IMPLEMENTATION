@@ -1,0 +1,25 @@
+var a = 10;
+var b = 3;
+output(a + b);
+output(a - b);
+output(a * b);
+output(a / b);
+output(a % b);
+output(2 ^ 10);
+
+var pi = 3.5;
+var r = 2.0;
+output(pi * r);
+
+var name = "Ada";
+output(name + "!");
+
+var flag = true;
+output(flag && false);
+output(flag || false);
+
+var parsedInt = int("42");
+var parsedFloat = float("2.5");
+var text = string(parsedInt);
+output(text);
+output(parsedFloat);

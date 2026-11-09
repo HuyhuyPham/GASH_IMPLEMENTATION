@@ -1,8 +1,9 @@
-
-#include "Lexer.h"
-#include "Parser.h"
 #include "CodeGenerator.h"
+#include "CompilerPipeline.h"
+#include "Lexer.h"
 #include "LexicalError.h"
+#include "Parser.h"
+#include "Semantic.h"
 #include "Token.h"
 
 #include <filesystem>
@@ -25,8 +26,8 @@ void printUsage() {
         << "  gash --tokens <file.gash>\n"
         << "  gash --check <file.gash>\n"
         << "  gash --emit-cpp <file.gash> [output.cpp]\n"
-        << "  gash <file.gash>\n\n"
-        << "Note: Executable compilation is not yet integrated.\n";
+        << "  gash --run <file.gash>\n"
+        << "  gash <file.gash>\n";
 }
 
 std::string readSourceFile(const fs::path& path) {
@@ -109,6 +110,16 @@ fs::path defaultOutputPath(const fs::path& inputPath) {
     return output;
 }
 
+fs::path defaultExecutablePath(const fs::path& inputPath) {
+    fs::path output = inputPath;
+#ifdef _WIN32
+    output.replace_extension(".exe");
+#else
+    output.replace_extension(".out");
+#endif
+    return output;
+}
+
 } // namespace
 
 int main(int argc, char* argv[]) {
@@ -125,7 +136,8 @@ int main(int argc, char* argv[]) {
     enum class Mode {
         Tokens,
         Check,
-        EmitCpp
+        EmitCpp,
+        Run
     };
 
     Mode mode = Mode::EmitCpp;
@@ -140,6 +152,10 @@ int main(int argc, char* argv[]) {
 
     } else if (firstArg == "--check" && argc == 3) {
         mode = Mode::Check;
+        inputPath = argv[2];
+
+    } else if (firstArg == "--run" && argc == 3) {
+        mode = Mode::Run;
         inputPath = argv[2];
 
     } else if (firstArg == "--emit-cpp" &&
@@ -172,10 +188,20 @@ int main(int argc, char* argv[]) {
 
         gash::Program program = parse(std::move(tokens));
 
+        gash::SemanticAnalyzer semantic;
+        semantic.analyze(program);
+
         if (mode == Mode::Check) {
             std::cout
-                << "Lexical and syntax checks passed.\n";
+                << "Lexical, syntax, and semantic checks passed.\n";
             return 0;
+        }
+
+        if (mode == Mode::Run) {
+            gash::CompilerPipeline pipeline;
+            fs::path cppPath = defaultOutputPath(inputPath);
+            fs::path exePath = defaultExecutablePath(inputPath);
+            return pipeline.compileAndRun(program, cppPath, exePath);
         }
 
         gash::CodeGenerator generator;

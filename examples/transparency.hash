@@ -1,0 +1,22 @@
+var balance = 100;
+guard balance >= 0;
+checkpoint initial(balance);
+
+balance = 50;
+output(balance);
+
+restore(initial);
+output(balance);
+
+budget (20) {
+    while (balance > 70) {
+        balance = balance - 10;
+    }
+}
+output(balance);
+
+lock balance;
+preview();
+unlock balance;
+balance = balance + 1;
+output(balance);

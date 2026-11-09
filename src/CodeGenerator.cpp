@@ -1,8 +1,10 @@
 #include "CodeGenerator.h"
+#include "Semantic.h"
 
+#include <cstddef>
 #include <iomanip>
-#include <stdexcept>
 #include <iostream>
+#include <stdexcept>
 
 namespace gash
 {
@@ -15,30 +17,19 @@ namespace gash
         }
         output << line << std::endl;
     }
+
     // Statement generation
     void CodeGenerator::emitStatement(const Stmt &stmt)
     {
         if (const auto *decl = dynamic_cast<const VarDeclStmt *>(&stmt))
         {
             emitLine("gash::BudgetScope::tick();");
-
             if (!decl->initializer)
             {
-                throw std::runtime_error(
-                    "Variable declaration requires an initializer");
+                throw std::runtime_error("Variable declaration requires an initializer");
             }
-
-            // 1. Declare and initialise the variable
-            emitLine(
-                "auto gash_" + decl->name + " = " +
-                emitExpression(*decl->initializer) + ";");
-
-            // 2. Register the variable in the runtime environment
-            emitLine(
-                "gash_env.bindReference(\"" +
-                escapeString(decl->name) +
-                "\", gash_" + decl->name + ");");
-
+            emitLine("auto gash_" + decl->name + " = " + emitExpression(*decl->initializer) + ";");
+            emitLine("gash_env.bindReference(\"" + escapeString(decl->name) + "\", gash_" + decl->name + ");");
             return;
         }
         if (const auto *exprStmt = dynamic_cast<const ExpressionStmt *>(&stmt))
@@ -63,7 +54,9 @@ namespace gash
         {
             emitLine("{");
             indentLevel++;
-            for (int i = 0; i < blockStmt->statements.size(); i++)
+            int scopeId = nextScopeGuardId++;
+            emitLine("gash::ScopeGuard gash_scope_" + std::to_string(scopeId) + "(gash_env);");
+            for (std::size_t i = 0; i < blockStmt->statements.size(); i++)
             {
                 emitStatement(*blockStmt->statements[i]);
             }
@@ -82,7 +75,7 @@ namespace gash
             emitLine("}");
             if (ifStmt->elseBranch != nullptr)
             {
-                emitLine("else{");
+                emitLine("else {");
                 indentLevel++;
                 emitStatement(*ifStmt->elseBranch);
                 indentLevel--;
@@ -101,7 +94,6 @@ namespace gash
             emitLine("}");
             return;
         }
-
         if (const auto *repeatStmt = dynamic_cast<const RepeatStmt *>(&stmt))
         {
             emitLine("gash::BudgetScope::tick();");
@@ -123,14 +115,13 @@ namespace gash
             emitLine("}");
             return;
         }
-
-        if (const auto *exitStmt = dynamic_cast<const ExitStmt *>(&stmt))
+        if (dynamic_cast<const ExitStmt *>(&stmt))
         {
             emitLine("gash::BudgetScope::tick();");
             emitLine("break;");
             return;
         }
-        if (const auto *skipStmt = dynamic_cast<const SkipStmt *>(&stmt))
+        if (dynamic_cast<const SkipStmt *>(&stmt))
         {
             emitLine("gash::BudgetScope::tick();");
             emitLine("continue;");
@@ -153,8 +144,15 @@ namespace gash
         if (const auto *functionStmt = dynamic_cast<const FunctionDeclStmt *>(&stmt))
         {
             std::string name = "gash_" + functionStmt->name;
-            std::string signature = "auto " + name + "(";
-            for (size_t i = 0; i < functionStmt->parameters.size(); i++)
+            std::string returnTypeCpp = "auto";
+            auto foundRet = functionReturnTypes.find(functionStmt->name);
+            if (foundRet != functionReturnTypes.end() && foundRet->second.isValid())
+            {
+                returnTypeCpp = foundRet->second.toCppType();
+            }
+
+            std::string signature = returnTypeCpp + " " + name + "(";
+            for (std::size_t i = 0; i < functionStmt->parameters.size(); i++)
             {
                 const auto &param = functionStmt->parameters[i];
                 std::string cppType = mapType(param.type);
@@ -166,7 +164,28 @@ namespace gash
             }
             signature += ")";
             emitLine(signature);
-            emitStatement(*functionStmt->body);
+
+            emitLine("{");
+            indentLevel++;
+            int scopeId = nextScopeGuardId++;
+            emitLine("gash::ScopeGuard gash_scope_" + std::to_string(scopeId) + "(gash_env);");
+            for (const auto &param : functionStmt->parameters)
+            {
+                emitLine("gash_env.bindReference(\"" + escapeString(param.name) + "\", gash_" + param.name + ");");
+            }
+            if (const auto *bodyBlock = dynamic_cast<const BlockStmt *>(functionStmt->body.get()))
+            {
+                for (std::size_t i = 0; i < bodyBlock->statements.size(); i++)
+                {
+                    emitStatement(*bodyBlock->statements[i]);
+                }
+            }
+            else if (functionStmt->body)
+            {
+                emitStatement(*functionStmt->body);
+            }
+            indentLevel--;
+            emitLine("}");
             return;
         }
         if (const auto *budget = dynamic_cast<const BudgetStmt *>(&stmt))
@@ -188,42 +207,50 @@ namespace gash
             emitLine("}");
             return;
         }
-        if (const auto *checkpoint =
-                dynamic_cast<const CheckpointStmt *>(&stmt))
+        if (const auto *guardStmt = dynamic_cast<const GuardStmt *>(&stmt))
         {
-
             emitLine("gash::BudgetScope::tick();");
-
-            std::string names = "{";
-            for (size_t i = 0; i < checkpoint->variables.size(); ++i)
-            {
-                if (i > 0)
-                    names += ", ";
-                names += "\"" + escapeString(checkpoint->variables[i]) + "\"";
-            }
-            names += "}";
-
-            emitLine(
-                "gash_checkpoints.save(\"" +
-                escapeString(checkpoint->label) +
-                "\", " + names + ", gash_env);");
+            std::string cond = emitExpression(*guardStmt->condition);
+            emitLine("gash_env.addLiveGuard([&]() -> bool { return (" + cond + "); });");
             return;
         }
-
-        if (const auto *restore =
-                dynamic_cast<const RestoreStmt *>(&stmt))
+        if (const auto *lockStmt = dynamic_cast<const LockStmt *>(&stmt))
         {
-
             emitLine("gash::BudgetScope::tick();");
-
-            emitLine(
-                "gash_checkpoints.restore(\"" +
-                escapeString(restore->label) +
-                "\", gash_env);");
+            emitLine("gash_env.lock(\"" + escapeString(lockStmt->name) + "\");");
+            return;
+        }
+        if (const auto *unlockStmt = dynamic_cast<const UnlockStmt *>(&stmt))
+        {
+            emitLine("gash::BudgetScope::tick();");
+            emitLine("gash_env.unlock(\"" + escapeString(unlockStmt->name) + "\");");
+            return;
+        }
+        if (const auto *cpStmt = dynamic_cast<const CheckpointStmt *>(&stmt))
+        {
+            emitLine("gash::BudgetScope::tick();");
+            std::string varList = "{";
+            for (std::size_t i = 0; i < cpStmt->variables.size(); ++i)
+            {
+                if (i > 0)
+                {
+                    varList += ", ";
+                }
+                varList += "\"" + escapeString(cpStmt->variables[i]) + "\"";
+            }
+            varList += "}";
+            emitLine("gash_checkpoints.save(\"" + escapeString(cpStmt->label) + "\", " + varList + ", gash_env);");
+            return;
+        }
+        if (const auto *restoreStmt = dynamic_cast<const RestoreStmt *>(&stmt))
+        {
+            emitLine("gash::BudgetScope::tick();");
+            emitLine("gash_checkpoints.restore(\"" + escapeString(restoreStmt->label) + "\", gash_env);");
             return;
         }
         throw std::runtime_error("Statement type not yet supported by CodeGenerator");
     }
+
     // Expression generation
     std::string CodeGenerator::emitExpression(const Expr &expr) const
     {
@@ -235,19 +262,25 @@ namespace gash
         {
             std::ostringstream value;
             value << std::setprecision(17) << node->value;
-            return value.str();
+            std::string s = value.str();
+            if (s.find('.') == std::string::npos && s.find('e') == std::string::npos && s.find('E') == std::string::npos)
+            {
+                s += ".0";
+            }
+            return s;
         }
         if (const auto *node = dynamic_cast<const BoolExpr *>(&expr))
         {
-            if (node->value == true)
-            {
-                return "true";
-            }
-            return "false";
+            return node->value ? "true" : "false";
+        }
+        if (const auto *node = dynamic_cast<const CharExpr *>(&expr))
+        {
+            std::string ch(1, node->value);
+            return "'" + escapeString(ch) + "'";
         }
         if (const auto *node = dynamic_cast<const StringExpr *>(&expr))
         {
-            return "\"" + escapeString(node->value) + "\"";
+            return "std::string(\"" + escapeString(node->value) + "\")";
         }
         if (const auto *node = dynamic_cast<const VariableExpr *>(&expr))
         {
@@ -255,11 +288,13 @@ namespace gash
         }
         if (const auto *node = dynamic_cast<const BinaryExpr *>(&expr))
         {
+            std::string left = emitExpression(*node->left);
+            std::string right = emitExpression(*node->right);
             if (node->op == "^")
             {
-                throw std::runtime_error("Exponentiation code generation not implemented yet");
+                return "static_cast<std::decay_t<decltype(" + left + ")>>(std::pow(" + left + ", " + right + "))";
             }
-            return "(" + emitExpression(*node->left) + " " + node->op + " " + emitExpression(*node->right) + ")";
+            return "(" + left + " " + node->op + " " + right + ")";
         }
         if (const auto *node = dynamic_cast<const UnaryExpr *>(&expr))
         {
@@ -268,7 +303,21 @@ namespace gash
         if (const auto *node = dynamic_cast<const AssignmentExpr *>(&expr))
         {
             std::string value = emitExpression(*node->value);
+            if (const auto *idxTarget = dynamic_cast<const IndexExpr *>(node->target.get()))
+            {
+                std::string collection = emitExpression(*idxTarget->collection);
+                std::string index = emitExpression(*idxTarget->index);
+                if (const auto *varColl = dynamic_cast<const VariableExpr *>(idxTarget->collection.get()))
+                {
+                    return "gash_env.mutateList(\"" + escapeString(varColl->name) + "\", [&]() { return ((" + collection + ").set(" + index + ", " + value + "), " + value + "); })";
+                }
+                return "((" + collection + ").set(" + index + ", " + value + "), " + value + ")";
+            }
             std::string target = emitExpression(*node->target);
+            if (const auto *varTarget = dynamic_cast<const VariableExpr *>(node->target.get()))
+            {
+                return "gash_env.mutateVar(\"" + escapeString(varTarget->name) + "\", [&]() { return (" + target + " = " + value + "); })";
+            }
             return "(" + target + " = " + value + ")";
         }
         if (const auto *node = dynamic_cast<const CallExpr *>(&expr))
@@ -325,9 +374,23 @@ namespace gash
                 }
                 return "gash::preview()";
             }
+            if (node->callee == "extend")
+            {
+                if (node->arguments.size() != 2)
+                {
+                    throw std::runtime_error("extend() expects exactly 2 arguments");
+                }
+                std::string listArg = emitExpression(*node->arguments[0]);
+                std::string sizeArg = emitExpression(*node->arguments[1]);
+                if (const auto *varList = dynamic_cast<const VariableExpr *>(node->arguments[0].get()))
+                {
+                    return "gash_env.mutateListVoid(\"" + escapeString(varList->name) + "\", [&]() { (" + listArg + ").resize(" + sizeArg + "); })";
+                }
+                return "(" + listArg + ").resize(" + sizeArg + ")";
+            }
             std::string functionName = "gash_" + node->callee;
             std::string result = functionName + "(";
-            for (size_t i = 0; i < node->arguments.size(); i++)
+            for (std::size_t i = 0; i < node->arguments.size(); i++)
             {
                 const auto &argument = node->arguments[i];
                 if (i > 0)
@@ -355,11 +418,12 @@ namespace gash
         }
         throw std::runtime_error("Expression type not yet supported by CodeGenerator");
     }
+
     // Escape a GASH string for C++ output.
     std::string CodeGenerator::escapeString(const std::string &value)
     {
         std::string result;
-        for (int i = 0; i < value.size(); i++)
+        for (std::size_t i = 0; i < value.size(); i++)
         {
             if (value[i] == '\\')
             {
@@ -388,18 +452,49 @@ namespace gash
         }
         return result;
     }
+
     std::string CodeGenerator::generate(const Program &program)
     {
         indentLevel = 0;
         nextRepeatId = 0;
+        nextScopeGuardId = 0;
+        functionReturnTypes.clear();
         output.str("");
         output.clear();
 
+        // Populate inferred function return types using SemanticAnalyzer when available.
+        try
+        {
+            SemanticAnalyzer semantic;
+            semantic.analyze(program);
+            for (const auto &stmt : program.statements)
+            {
+                if (const auto *fn = dynamic_cast<const FunctionDeclStmt *>(stmt.get()))
+                {
+                    functionReturnTypes[fn->name] = semantic.getFunctionReturnType(fn->name);
+                }
+            }
+        }
+        catch (...)
+        {
+            // Allow standalone CodeGenerator tests with partial ASTs to proceed using auto deduction.
+        }
+
         emitLine("#include <iostream>");
         emitLine("#include <string>");
+        emitLine("#include <cmath>");
+        emitLine("#include <stdexcept>");
+        emitLine("#include <type_traits>");
         emitLine("#include \"Budget.h\"");
-        emitLine("#include \"Environment.h\"");
         emitLine("#include \"Checkpoint.h\"");
+        emitLine("#include \"Environment.h\"");
+        emitLine("#include \"Inspect.h\"");
+        emitLine("#include \"List.h\"");
+        emitLine("#include \"Preview.h\"");
+        emitLine("#include \"Value.h\"");
+        emitLine("");
+        emitLine("static gash::Environment gash_env;");
+        emitLine("static gash::CheckpointManager gash_checkpoints;");
         emitLine("");
 
         for (const auto &stmt : program.statements)
@@ -413,9 +508,7 @@ namespace gash
 
         emitLine("int main(){");
         indentLevel++;
-
-        emitLine("gash::Environment gash_env;");
-        emitLine("gash::CheckpointManager gash_checkpoints;");
+        emitLine("gash::registerPreviewEnvironment(&gash_env);");
 
         for (const auto &stmt : program.statements)
         {
@@ -432,28 +525,14 @@ namespace gash
 
         return output.str();
     }
+
     // helper
     std::string CodeGenerator::mapType(const std::string &gashType)
     {
-        if (gashType == "int")
+        Type parsed = Type::fromName(gashType);
+        if (parsed.isValid() && !parsed.isVoid())
         {
-            return "int";
-        }
-        else if (gashType == "float")
-        {
-            return "double";
-        }
-        else if (gashType == "string")
-        {
-            return "std::string";
-        }
-        else if (gashType == "bool")
-        {
-            return "bool";
-        }
-        else if (gashType == "char")
-        {
-            return "char";
+            return parsed.toCppType();
         }
 
         throw std::runtime_error(

@@ -1,0 +1,11 @@
+var score = 85;
+
+if (score >= 80) {
+    output("High Distinction");
+} otherwise {
+    output("Pass");
+}
+
+if (score == 85 && !(score < 50)) {
+    output("Verified");
+}

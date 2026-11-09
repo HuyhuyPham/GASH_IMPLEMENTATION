@@ -1,0 +1,9 @@
+var nums = list<int>(3);
+nums[0] = 10;
+nums[1] = 20;
+nums[2] = nums[0] + nums[1];
+output(nums[2]);
+
+extend(nums, 5);
+nums[4] = 99;
+inspect(nums);

@@ -67,4 +67,4 @@ private:
 };
 
 } // namespace gash
-#endif
+#endif // GASH_LEXER_H

@@ -50,4 +50,4 @@ private:
 
 } // namespace gash
 
-#endif
+#endif // GASH_LEXICAL_ERROR_H

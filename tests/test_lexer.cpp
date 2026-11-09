@@ -480,12 +480,4 @@ int main() {
               << " tests passed\n";
 
     return passed == static_cast<int>(tests.size()) ? 0 : 1;
-<<<<<<< HEAD
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> origin/sala
-=======
-}
->>>>>>> origin/atq

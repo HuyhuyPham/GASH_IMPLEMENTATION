@@ -1,4 +1,5 @@
 #include "Environment.h"
+#include "Preview.h"
 
 #include <algorithm>
 #include <stdexcept>
@@ -8,16 +9,79 @@ namespace gash {
 
 namespace {
 
-const Environment*& activePreviewEnvironmentStorage() {
-    static const Environment* env = nullptr;
-    return env;
-}
-
 std::string formatScopeLabel(std::size_t scopeId) {
     if (scopeId == 1) {
         return "global";
     }
     return "scope#" + std::to_string(scopeId);
+}
+
+template <typename T>
+Type listElementTypeFor();
+
+template <>
+Type listElementTypeFor<int>() { return Type::Int(); }
+
+template <>
+Type listElementTypeFor<double>() { return Type::Float(); }
+
+template <>
+Type listElementTypeFor<bool>() { return Type::Bool(); }
+
+template <>
+Type listElementTypeFor<char>() { return Type::Char(); }
+
+template <>
+Type listElementTypeFor<std::string>() { return Type::String(); }
+
+template <typename T>
+T extractElement(const Value& v);
+
+template <>
+int extractElement<int>(const Value& v) { return v.asInt(); }
+
+template <>
+double extractElement<double>(const Value& v) { return v.asFloat(); }
+
+template <>
+bool extractElement<bool>(const Value& v) { return v.asBool(); }
+
+template <>
+char extractElement<char>(const Value& v) { return v.asChar(); }
+
+template <>
+std::string extractElement<std::string>(const Value& v) { return v.asString(); }
+
+template <typename T>
+Value convertListToValue(const List<T>& cppList) {
+    const Type elemType = listElementTypeFor<T>();
+    ListValue lv(
+        elemType,
+        static_cast<std::int64_t>(cppList.size()),
+        cppList.capacity());
+    for (std::size_t i = 0; i < cppList.size(); ++i) {
+        const auto idx = static_cast<std::int64_t>(i);
+        if (cppList.isInitialized(idx)) {
+            lv.set(idx, Value(cppList.get(idx)));
+        }
+    }
+    return Value(std::move(lv));
+}
+
+template <typename T>
+void applyValueToList(const Value& v, List<T>& cppList) {
+    const ListValue& lv = v.asList();
+    cppList.resize(0);
+    if (lv.capacity() > 0) {
+        cppList.resize(static_cast<std::int64_t>(lv.capacity()));
+    }
+    cppList.resize(static_cast<std::int64_t>(lv.size()));
+    for (std::size_t i = 0; i < lv.size(); ++i) {
+        const auto idx = static_cast<std::int64_t>(i);
+        if (lv.isInitialized(idx)) {
+            cppList.set(idx, extractElement<T>(lv.get(idx)));
+        }
+    }
 }
 
 } // anonymous namespace
@@ -39,6 +103,14 @@ void Environment::popScope() {
     }
     const std::size_t poppedId = frames_.back().id;
     guards_.removeGuardsForScope(poppedId);
+    liveGuards_.erase(
+        std::remove_if(
+            liveGuards_.begin(),
+            liveGuards_.end(),
+            [poppedId](const LiveGuardEntry& entry) {
+                return entry.registrationScopeId == poppedId;
+            }),
+        liveGuards_.end());
     frames_.pop_back();
 }
 
@@ -137,6 +209,9 @@ void Environment::bindReference(const std::string& name, int& cppVar) {
     if (!b || b->type != Type::Int()) {
         throw std::runtime_error("Cannot bind 'int&' to variable '" + name + "'");
     }
+    b->value = Value::Int(cppVar);
+    b->value.setBindingId(b->bindingId);
+    b->initialized = true;
     b->writeBackHook = [&cppVar](const Value& v) { cppVar = v.asInt(); };
     b->readThroughHook = [&cppVar]() { return Value::Int(cppVar); };
 }
@@ -149,6 +224,9 @@ void Environment::bindReference(const std::string& name, double& cppVar) {
     if (!b || b->type != Type::Float()) {
         throw std::runtime_error("Cannot bind 'double&' to variable '" + name + "'");
     }
+    b->value = Value::Float(cppVar);
+    b->value.setBindingId(b->bindingId);
+    b->initialized = true;
     b->writeBackHook = [&cppVar](const Value& v) { cppVar = v.asFloat(); };
     b->readThroughHook = [&cppVar]() { return Value::Float(cppVar); };
 }
@@ -161,6 +239,9 @@ void Environment::bindReference(const std::string& name, bool& cppVar) {
     if (!b || b->type != Type::Bool()) {
         throw std::runtime_error("Cannot bind 'bool&' to variable '" + name + "'");
     }
+    b->value = Value::Bool(cppVar);
+    b->value.setBindingId(b->bindingId);
+    b->initialized = true;
     b->writeBackHook = [&cppVar](const Value& v) { cppVar = v.asBool(); };
     b->readThroughHook = [&cppVar]() { return Value::Bool(cppVar); };
 }
@@ -173,6 +254,9 @@ void Environment::bindReference(const std::string& name, char& cppVar) {
     if (!b || b->type != Type::Char()) {
         throw std::runtime_error("Cannot bind 'char&' to variable '" + name + "'");
     }
+    b->value = Value::Char(cppVar);
+    b->value.setBindingId(b->bindingId);
+    b->initialized = true;
     b->writeBackHook = [&cppVar](const Value& v) { cppVar = v.asChar(); };
     b->readThroughHook = [&cppVar]() { return Value::Char(cppVar); };
 }
@@ -185,8 +269,91 @@ void Environment::bindReference(const std::string& name, std::string& cppVar) {
     if (!b || b->type != Type::String()) {
         throw std::runtime_error("Cannot bind 'std::string&' to variable '" + name + "'");
     }
+    b->value = Value::String(cppVar);
+    b->value.setBindingId(b->bindingId);
+    b->initialized = true;
     b->writeBackHook = [&cppVar](const Value& v) { cppVar = v.asString(); };
     b->readThroughHook = [&cppVar]() { return Value::String(cppVar); };
+}
+
+void Environment::bindReference(const std::string& name, List<int>& cppList) {
+    const Type listType = Type::ListOf(Type::Int());
+    if (!hasVariableInCurrentScope(name)) {
+        define(name, listType, convertListToValue(cppList));
+    }
+    VariableBinding* b = findBindingMutable(name);
+    if (!b || b->type != listType) {
+        throw std::runtime_error("Cannot bind 'List<int>&' to variable '" + name + "'");
+    }
+    b->value = convertListToValue(cppList);
+    b->value.setBindingId(b->bindingId);
+    b->initialized = true;
+    b->writeBackHook = [&cppList](const Value& v) { applyValueToList(v, cppList); };
+    b->readThroughHook = [&cppList]() { return convertListToValue(cppList); };
+}
+
+void Environment::bindReference(const std::string& name, List<double>& cppList) {
+    const Type listType = Type::ListOf(Type::Float());
+    if (!hasVariableInCurrentScope(name)) {
+        define(name, listType, convertListToValue(cppList));
+    }
+    VariableBinding* b = findBindingMutable(name);
+    if (!b || b->type != listType) {
+        throw std::runtime_error("Cannot bind 'List<double>&' to variable '" + name + "'");
+    }
+    b->value = convertListToValue(cppList);
+    b->value.setBindingId(b->bindingId);
+    b->initialized = true;
+    b->writeBackHook = [&cppList](const Value& v) { applyValueToList(v, cppList); };
+    b->readThroughHook = [&cppList]() { return convertListToValue(cppList); };
+}
+
+void Environment::bindReference(const std::string& name, List<bool>& cppList) {
+    const Type listType = Type::ListOf(Type::Bool());
+    if (!hasVariableInCurrentScope(name)) {
+        define(name, listType, convertListToValue(cppList));
+    }
+    VariableBinding* b = findBindingMutable(name);
+    if (!b || b->type != listType) {
+        throw std::runtime_error("Cannot bind 'List<bool>&' to variable '" + name + "'");
+    }
+    b->value = convertListToValue(cppList);
+    b->value.setBindingId(b->bindingId);
+    b->initialized = true;
+    b->writeBackHook = [&cppList](const Value& v) { applyValueToList(v, cppList); };
+    b->readThroughHook = [&cppList]() { return convertListToValue(cppList); };
+}
+
+void Environment::bindReference(const std::string& name, List<char>& cppList) {
+    const Type listType = Type::ListOf(Type::Char());
+    if (!hasVariableInCurrentScope(name)) {
+        define(name, listType, convertListToValue(cppList));
+    }
+    VariableBinding* b = findBindingMutable(name);
+    if (!b || b->type != listType) {
+        throw std::runtime_error("Cannot bind 'List<char>&' to variable '" + name + "'");
+    }
+    b->value = convertListToValue(cppList);
+    b->value.setBindingId(b->bindingId);
+    b->initialized = true;
+    b->writeBackHook = [&cppList](const Value& v) { applyValueToList(v, cppList); };
+    b->readThroughHook = [&cppList]() { return convertListToValue(cppList); };
+}
+
+void Environment::bindReference(const std::string& name, List<std::string>& cppList) {
+    const Type listType = Type::ListOf(Type::String());
+    if (!hasVariableInCurrentScope(name)) {
+        define(name, listType, convertListToValue(cppList));
+    }
+    VariableBinding* b = findBindingMutable(name);
+    if (!b || b->type != listType) {
+        throw std::runtime_error("Cannot bind 'List<std::string>&' to variable '" + name + "'");
+    }
+    b->value = convertListToValue(cppList);
+    b->value.setBindingId(b->bindingId);
+    b->initialized = true;
+    b->writeBackHook = [&cppList](const Value& v) { applyValueToList(v, cppList); };
+    b->readThroughHook = [&cppList]() { return convertListToValue(cppList); };
 }
 
 void Environment::undefine(const std::string& name) {
@@ -283,7 +450,14 @@ bool Environment::isInitialized(const std::string& name) const {
 
 VariableResolver Environment::makeResolver() const {
     return [this](const std::string& name) -> Value {
-        return this->get(name);
+        const VariableBinding& b = this->getBinding(name);
+        if (!b.initialized || !b.value.isInitialized()) {
+            throw std::runtime_error("Read of uninitialized variable: " + name);
+        }
+        if (b.readThroughHook) {
+            return b.readThroughHook();
+        }
+        return b.value;
     };
 }
 
@@ -300,6 +474,81 @@ VariableResolver Environment::makeResolverForFrames(
         }
         return b->value;
     };
+}
+
+void Environment::beginMutation(const std::string& name, bool isListOp) const {
+    const VariableBinding* binding = findBinding(name);
+    if (!binding) {
+        return;
+    }
+    if (binding->locked) {
+        if (isListOp) {
+            throw std::runtime_error(
+                "Cannot modify element or size of locked list '" + name + "'");
+        }
+        throw std::runtime_error("Cannot modify locked variable: " + name);
+    }
+}
+
+Value Environment::snapshotCurrentValue(const std::string& name) const {
+    const VariableBinding* binding = findBinding(name);
+    if (!binding) {
+        return Value();
+    }
+    if (binding->readThroughHook && binding->initialized) {
+        Value v = binding->readThroughHook();
+        v.setBindingId(binding->bindingId);
+        return v;
+    }
+    return binding->value;
+}
+
+void Environment::commitOrRollbackMutation(
+    const std::string& name,
+    const Value& /*oldVal*/
+) {
+    VariableBinding* binding = findBindingMutable(name);
+    if (!binding) {
+        validateLiveGuards();
+        return;
+    }
+    Value candidateVal = binding->readThroughHook
+                             ? binding->readThroughHook()
+                             : binding->value;
+    candidateVal.setBindingId(binding->bindingId);
+
+    guards_.validateCandidate(
+        name,
+        binding->scopeId,
+        candidateVal,
+        makeResolver());
+    validateLiveGuards();
+
+    binding->value = std::move(candidateVal);
+    binding->initialized = true;
+}
+
+void Environment::rollbackValue(const std::string& name, const Value& oldVal) {
+    VariableBinding* binding = findBindingMutable(name);
+    if (!binding || !oldVal.isInitialized()) {
+        return;
+    }
+    binding->value = oldVal;
+    binding->value.setBindingId(binding->bindingId);
+    if (binding->writeBackHook) {
+        binding->writeBackHook(binding->value);
+    }
+}
+
+void Environment::validateLiveGuards() const {
+    for (const auto& lg : liveGuards_) {
+        if (!lg.check()) {
+            if (!lg.description.empty()) {
+                throw std::runtime_error("Guard violation: " + lg.description);
+            }
+            throw std::runtime_error("Guard violation");
+        }
+    }
 }
 
 void Environment::assign(const std::string& name, const Value& newValue) {
@@ -321,12 +570,17 @@ void Environment::assign(const std::string& name, const Value& newValue) {
             newValue.type().toString() + "'");
     }
 
-    // Validate candidate assignment against all active guards before mutating.
+    // Validate candidate assignment against AST/callback guards before mutating.
     guards_.validateCandidate(
         name,
         binding->scopeId,
         newValue,
         makeResolver());
+
+    Value previousValue = binding->readThroughHook
+                              ? binding->readThroughHook()
+                              : binding->value;
+    previousValue.setBindingId(binding->bindingId);
 
     binding->value = newValue;
     binding->value.setBindingId(binding->bindingId);
@@ -334,13 +588,27 @@ void Environment::assign(const std::string& name, const Value& newValue) {
     if (binding->writeBackHook) {
         binding->writeBackHook(binding->value);
     }
+
+    try {
+        validateLiveGuards();
+    } catch (...) {
+        binding->value = previousValue;
+        if (binding->writeBackHook && previousValue.isInitialized()) {
+            binding->writeBackHook(previousValue);
+        }
+        throw;
+    }
 }
 
 Value Environment::getListElement(
     const std::string& name,
     std::int64_t index
 ) const {
-    const Value& listVal = get(name);
+    const VariableBinding& binding = getBinding(name);
+    if (!binding.initialized || !binding.value.isInitialized()) {
+        throw std::runtime_error("Read of uninitialized variable: " + name);
+    }
+    Value listVal = binding.readThroughHook ? binding.readThroughHook() : binding.value;
     if (!listVal.isList()) {
         throw std::runtime_error("Variable '" + name + "' is not a list");
     }
@@ -364,8 +632,11 @@ void Environment::assignListElement(
             "Cannot modify element of locked list '" + name + "'");
     }
 
+    Value currentVal = binding->readThroughHook ? binding->readThroughHook() : binding->value;
+    currentVal.setBindingId(binding->bindingId);
+
     // Stage a deep copy of the list and apply the element change on the candidate.
-    ListValue candidateList = binding->value.asList();
+    ListValue candidateList = currentVal.asList();
     candidateList.set(index, elementValue);
     Value candidateValue(std::move(candidateList));
     candidateValue.setBindingId(binding->bindingId);
@@ -379,6 +650,19 @@ void Environment::assignListElement(
 
     binding->value = std::move(candidateValue);
     binding->initialized = true;
+    if (binding->writeBackHook) {
+        binding->writeBackHook(binding->value);
+    }
+
+    try {
+        validateLiveGuards();
+    } catch (...) {
+        binding->value = currentVal;
+        if (binding->writeBackHook) {
+            binding->writeBackHook(currentVal);
+        }
+        throw;
+    }
 }
 
 void Environment::extendList(const std::string& name, std::int64_t newSize) {
@@ -393,7 +677,10 @@ void Environment::extendList(const std::string& name, std::int64_t newSize) {
         throw std::runtime_error("Cannot resize/extend locked list '" + name + "'");
     }
 
-    ListValue candidateList = binding->value.asList();
+    Value currentVal = binding->readThroughHook ? binding->readThroughHook() : binding->value;
+    currentVal.setBindingId(binding->bindingId);
+
+    ListValue candidateList = currentVal.asList();
     candidateList.resize(newSize);
     Value candidateValue(std::move(candidateList));
     candidateValue.setBindingId(binding->bindingId);
@@ -406,6 +693,19 @@ void Environment::extendList(const std::string& name, std::int64_t newSize) {
 
     binding->value = std::move(candidateValue);
     binding->initialized = true;
+    if (binding->writeBackHook) {
+        binding->writeBackHook(binding->value);
+    }
+
+    try {
+        validateLiveGuards();
+    } catch (...) {
+        binding->value = currentVal;
+        if (binding->writeBackHook) {
+            binding->writeBackHook(currentVal);
+        }
+        throw;
+    }
 }
 
 void Environment::lock(const std::string& name) {
@@ -440,10 +740,11 @@ void Environment::addGuard(
         throw std::runtime_error(
             "Cannot attach guard to uninitialized variable: " + name);
     }
+    Value currentVal = binding.readThroughHook ? binding.readThroughHook() : binding.value;
     guards_.addPredicateGuard(
         name,
         binding.scopeId,
-        binding.value,
+        currentVal,
         std::move(predicate),
         std::move(description),
         currentScopeId());
@@ -459,10 +760,11 @@ void Environment::addTypedGuard(
         throw std::runtime_error(
             "Cannot attach guard to uninitialized variable: " + name);
     }
+    Value currentVal = binding.readThroughHook ? binding.readThroughHook() : binding.value;
     guards_.addTypedGuard(
         name,
         binding.scopeId,
-        binding.value,
+        currentVal,
         std::move(evaluator),
         std::move(description),
         currentScopeId());
@@ -491,12 +793,33 @@ void Environment::addExpressionGuard(const Expr& condition) {
         currentScopeId());
 }
 
+void Environment::addLiveGuard(
+    std::function<bool()> check,
+    std::string description
+) {
+    if (!check) {
+        throw std::invalid_argument("Live guard callback cannot be empty");
+    }
+    if (!check()) {
+        if (!description.empty()) {
+            throw std::runtime_error(
+                "Guard violation on initial value: " + description);
+        }
+        throw std::runtime_error("Guard violation");
+    }
+    liveGuards_.push_back(LiveGuardEntry{
+        currentScopeId(),
+        std::move(check),
+        std::move(description)
+    });
+}
+
 bool Environment::hasGuard(const std::string& name) const {
     const VariableBinding* b = findBinding(name);
     if (!b) {
         return false;
     }
-    return guards_.hasGuard(name, b->scopeId);
+    return guards_.hasGuard(name, b->scopeId) || !liveGuards_.empty();
 }
 
 std::vector<PreviewVariableInfo> Environment::exportActiveVariables() const {
@@ -562,6 +885,17 @@ std::vector<VariableSnapshot> Environment::captureVariables(
 void Environment::restoreVariablesAtomically(
     const std::vector<VariableSnapshot>& variables
 ) {
+    // Sync current live C++ values into frames_ before staging so rollback is exact.
+    for (auto& frame : frames_) {
+        for (auto& kv : frame.variables) {
+            VariableBinding& b = kv.second;
+            if (b.readThroughHook && b.initialized) {
+                b.value = b.readThroughHook();
+                b.value.setBindingId(b.bindingId);
+            }
+        }
+    }
+
     // Stage a full copy of the environment frames for atomic rollback on failure.
     std::vector<ScopeFrame> candidateFrames = frames_;
 
@@ -613,10 +947,10 @@ void Environment::restoreVariablesAtomically(
         target->initialized = snapshot.initialized;
     }
 
-    // Validate all active guards against the staged candidate state before committing.
+    // Validate all AST/callback guards against the staged candidate state before committing.
     guards_.validateAll(makeResolverForFrames(candidateFrames));
 
-    // Commit atomically and update any bound C++ references (Assumption A39).
+    // Commit candidateFrames and apply writeBackHook, then validate live C++ guards.
     frames_.swap(candidateFrames);
     for (const auto& snapshot : variables) {
         VariableBinding* committed = findBindingMutable(snapshot.name);
@@ -624,35 +958,39 @@ void Environment::restoreVariablesAtomically(
             committed->writeBackHook(committed->value);
         }
     }
+
+    try {
+        validateLiveGuards();
+    } catch (...) {
+        // Roll back frames_ and bound C++ variables atomically.
+        frames_.swap(candidateFrames);
+        for (const auto& snapshot : variables) {
+            VariableBinding* previous = findBindingMutable(snapshot.name);
+            if (previous && previous->writeBackHook && previous->initialized) {
+                previous->writeBackHook(previous->value);
+            }
+        }
+        throw;
+    }
 }
 
 void registerPreviewEnvironment(const Environment* env) {
-    activePreviewEnvironmentStorage() = env;
+    if (!env) {
+        setPreviewProvider({});
+        return;
+    }
+    setPreviewProvider(env->createPreviewProvider<PreviewVariableSnapshot>());
 }
 
 void clearPreviewEnvironment() {
-    activePreviewEnvironmentStorage() = nullptr;
+    setPreviewProvider({});
 }
 
 void previewActiveVariables(std::ostream& out) {
-    const Environment* env = activePreviewEnvironmentStorage();
-    if (!env) {
-        throw std::runtime_error(
-            "preview() requires a registered Environment snapshot provider");
-    }
-
-    auto variables = env->exportActiveVariables();
-    out << "Variables (" << variables.size() << "):\n";
-    for (const auto& var : variables) {
-        out << "  "
-            << var.name
-            << " : " << var.type
-            << " = " << var.value
-            << " [" << (var.locked ? "locked" : "unlocked") << "]";
-        if (!var.scope.empty()) {
-            out << " scope=" << var.scope;
-        }
-        out << '\n';
+    try {
+        preview(out);
+    } catch (const std::logic_error& err) {
+        throw std::runtime_error(err.what());
     }
 }
 

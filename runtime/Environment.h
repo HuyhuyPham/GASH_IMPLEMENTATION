@@ -3,6 +3,7 @@
 
 #include "Checkpoint.h"
 #include "Guard.h"
+#include "List.h"
 #include "Type.h"
 #include "Value.h"
 
@@ -61,12 +62,17 @@ public:
     );
     void defineUninitialized(const std::string& name, const Type& declaredType);
 
-    // Bind a generated C++ variable reference to the Environment (Assumption A39).
+    // Bind a generated C++ variable or list reference to the Environment (Assumption A39).
     void bindReference(const std::string& name, int& cppVar);
     void bindReference(const std::string& name, double& cppVar);
     void bindReference(const std::string& name, bool& cppVar);
     void bindReference(const std::string& name, char& cppVar);
     void bindReference(const std::string& name, std::string& cppVar);
+    void bindReference(const std::string& name, List<int>& cppList);
+    void bindReference(const std::string& name, List<double>& cppList);
+    void bindReference(const std::string& name, List<bool>& cppList);
+    void bindReference(const std::string& name, List<char>& cppList);
+    void bindReference(const std::string& name, List<std::string>& cppList);
 
     // Remove a variable from its scope (used for testing redeclarations / A38 / A41).
     void undefine(const std::string& name);
@@ -93,6 +99,48 @@ public:
     );
     void extendList(const std::string& name, std::int64_t newSize);
 
+    // Generated C++ mutation wrappers (enforce locks and guards atomically with rollback)
+    template <typename Func>
+    auto mutateVar(const std::string& name, Func&& fn) -> decltype(fn()) {
+        beginMutation(name, false);
+        Value oldVal = snapshotCurrentValue(name);
+        try {
+            auto result = fn();
+            commitOrRollbackMutation(name, oldVal);
+            return result;
+        } catch (...) {
+            rollbackValue(name, oldVal);
+            throw;
+        }
+    }
+
+    template <typename Func>
+    auto mutateList(const std::string& name, Func&& fn) -> decltype(fn()) {
+        beginMutation(name, true);
+        Value oldVal = snapshotCurrentValue(name);
+        try {
+            auto result = fn();
+            commitOrRollbackMutation(name, oldVal);
+            return result;
+        } catch (...) {
+            rollbackValue(name, oldVal);
+            throw;
+        }
+    }
+
+    template <typename Func>
+    void mutateListVoid(const std::string& name, Func&& fn) {
+        beginMutation(name, true);
+        Value oldVal = snapshotCurrentValue(name);
+        try {
+            fn();
+            commitOrRollbackMutation(name, oldVal);
+        } catch (...) {
+            rollbackValue(name, oldVal);
+            throw;
+        }
+    }
+
     // Lock and unlock controls (repeated lock/unlock is a safe no-op)
     void lock(const std::string& name);
     void unlock(const std::string& name);
@@ -110,6 +158,10 @@ public:
         std::string description = ""
     );
     void addExpressionGuard(const Expr& condition);
+    void addLiveGuard(
+        std::function<bool()> check,
+        std::string description = ""
+    );
     bool hasGuard(const std::string& name) const;
 
     const GuardManager& guards() const noexcept { return guards_; }
@@ -153,10 +205,17 @@ private:
         std::unordered_map<std::string, VariableBinding> variables;
     };
 
+    struct LiveGuardEntry {
+        std::size_t registrationScopeId = 0;
+        std::function<bool()> check;
+        std::string description;
+    };
+
     std::vector<ScopeFrame> frames_;
     std::size_t nextScopeId_ = 1;
     std::size_t nextBindingId_ = 1;
     GuardManager guards_;
+    std::vector<LiveGuardEntry> liveGuards_;
 
     const VariableBinding* findBinding(const std::string& name) const;
     VariableBinding* findBindingMutable(const std::string& name);
@@ -174,6 +233,12 @@ private:
     static VariableResolver makeResolverForFrames(
         const std::vector<ScopeFrame>& frames
     );
+
+    void beginMutation(const std::string& name, bool isListOp) const;
+    Value snapshotCurrentValue(const std::string& name) const;
+    void commitOrRollbackMutation(const std::string& name, const Value& oldVal);
+    void rollbackValue(const std::string& name, const Value& oldVal);
+    void validateLiveGuards() const;
 };
 
 // RAII scope guard ensuring automatic scope cleanup on normal exit or exception unwinding (Assumption A53).

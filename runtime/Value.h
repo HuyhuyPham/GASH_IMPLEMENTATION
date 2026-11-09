@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <iostream>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
@@ -346,6 +347,43 @@ inline void ListValue::set(std::int64_t index, const Value& value) {
             throw std::runtime_error("Unsupported list element type");
     }
 }
+
+// Emitted runtime conversion and I/O helpers (Assumptions A31, S4, H7).
+inline std::string input(std::istream& in = std::cin) {
+    std::string line;
+    if (!std::getline(in, line)) {
+        return "";
+    }
+    return line;
+}
+
+inline int toInt(int v) { return v; }
+inline int toInt(double v) { return static_cast<int>(v); }
+inline int toInt(bool v) { return v ? 1 : 0; }
+inline int toInt(char v) { return static_cast<int>(v); }
+inline int toInt(const std::string& v) { return Value::String(v).castToInt().asInt(); }
+inline int toInt(const char* v) { return toInt(std::string(v ? v : "")); }
+inline int toInt(const Value& v) { return v.castToInt().asInt(); }
+
+inline double toFloat(int v) { return static_cast<double>(v); }
+inline double toFloat(double v) { return v; }
+inline double toFloat(bool v) { return v ? 1.0 : 0.0; }
+inline double toFloat(char v) { return static_cast<double>(v); }
+inline double toFloat(const std::string& v) { return Value::String(v).castToFloat().asFloat(); }
+inline double toFloat(const char* v) { return toFloat(std::string(v ? v : "")); }
+inline double toFloat(const Value& v) { return v.castToFloat().asFloat(); }
+
+inline std::string toString(int v) { return std::to_string(v); }
+inline std::string toString(double v) {
+    std::ostringstream oss;
+    oss << v;
+    return oss.str();
+}
+inline std::string toString(bool v) { return v ? "true" : "false"; }
+inline std::string toString(char v) { return std::string(1, v); }
+inline std::string toString(const std::string& v) { return v; }
+inline std::string toString(const char* v) { return std::string(v ? v : ""); }
+inline std::string toString(const Value& v) { return v.castToString().asString(); }
 
 } // namespace gash
 

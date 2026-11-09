@@ -522,4 +522,4 @@ void Lexer::scanToken(std::vector<Token>& tokens) {
         line, column
     );
 }
-}
+} // namespace gash
