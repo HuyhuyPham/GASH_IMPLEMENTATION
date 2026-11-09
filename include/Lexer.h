@@ -68,4 +68,8 @@ private:
 
 } // namespace gash
 
+<<<<<<< HEAD
 #endif // GASH_LEXER_H
+=======
+#endif // GASH_LEXER_H
+>>>>>>> origin/sala

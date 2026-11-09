@@ -50,4 +50,8 @@ private:
 
 } // namespace gash
 
+<<<<<<< HEAD
 #endif // GASH_LEXICAL_ERROR_H
+=======
+#endif // GASH_LEXICAL_ERROR_H
+>>>>>>> origin/sala

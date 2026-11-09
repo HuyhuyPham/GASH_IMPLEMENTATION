@@ -169,4 +169,8 @@ inline std::string_view tokenTypeName(TokenType type) {
 
 } // namespace gash
 
+<<<<<<< HEAD
 #endif // GASH_TOKEN_H
+=======
+#endif // GASH_TOKEN_H
+>>>>>>> origin/sala

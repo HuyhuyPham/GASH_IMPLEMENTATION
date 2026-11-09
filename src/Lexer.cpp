@@ -523,4 +523,8 @@ void Lexer::scanToken(std::vector<Token>& tokens) {
     );
 }
 
+<<<<<<< HEAD
 } // namespace gash
+=======
+} // namespace gash
+>>>>>>> origin/sala
