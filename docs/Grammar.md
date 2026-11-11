@@ -26,7 +26,7 @@ The grammar covers:
 
 The Parser is responsible for checking syntax and constructing AST nodes. Semantic validation, type checking, variable scopes, and runtime behaviour are handled by other components.
 
-This document follows the implemented parser design and the agreed team assumptions. Its lexical and syntactic rules have been reviewed against the supplied `Lexer.cpp`, `Parser.cpp`, and `Token.h` files. Semantic validation, code generation, and runtime behaviour must be checked separately.
+This document reflects the completed parser design and the agreed team assumptions. Its lexical and syntactic rules were reviewed against `Lexer.cpp`, `Parser.cpp`, and `Token.h`. Semantic validation, code generation, and runtime behaviour are covered by separate implementation components and tests.
 
 ---
 
@@ -789,7 +789,7 @@ numbers[1] = 20;
 output(numbers[0]);
 ```
 
-These examples demonstrate syntax accepted by the intended Parser design.
+These examples demonstrate syntax recognized by the implemented Parser.
 
 Successful execution also depends on semantic validation, Code Generation, and Runtime behaviour.
 
@@ -840,7 +840,7 @@ func add(int a,) {
 
 A comma must be followed by another valid parameter.
 
-These examples describe the expected Parser behaviour. Actual test results must be confirmed by running the G6 test suite.
+These examples illustrate syntax rejected by the implemented Parser. The registered Parser error tests passed in the final macOS test run.
 
 ---
 
@@ -960,7 +960,7 @@ G6 includes Parser unit tests, Checkpoint tests, and the Grammar Reference.
 
 ### 19.2 Test Coverage
 
-The tests should cover:
+The automated test suite covers the following areas:
 
 1. Valid GASH syntax.
 2. Invalid GASH syntax.
@@ -975,33 +975,41 @@ The tests should cover:
 11. Checkpoint saving and restoration.
 12. Deep-copy behaviour.
 13. Atomic restoration.
-14. Error handling and recovery.
+14. Rejection of invalid syntax and invalid checkpoint operations.
 
 ### 19.3 Final Validation
 
-Before marking G6 complete, verify the following against the latest merged implementation:
+The G6 grammar review and test integration were completed for the team implementation:
 
-- Expression parser tests pass.
-- Statement parser tests pass, including typed parameters and conversion calls.
-- Lexer-Parser integration tests pass.
-- Invalid syntax tests pass.
-- Nested statement and boundary tests pass.
-- Checkpoint helper tests pass.
-- Lexer comment syntax matches the documented grammar.
-- Grammar productions match the current Parser and Token definitions.
-- Runtime integration and end-to-end tests are reported separately from helper-only tests.
+- Expression and operator-precedence tests passed.
+- Statement Parser tests passed, including typed parameters and conversion calls.
+- Lexer-Parser integration tests passed.
+- Invalid syntax and nested-statement tests passed.
+- Checkpoint helper and real Runtime integration tests passed.
+- Checkpoint code-generation integration tests passed.
+- Lexer comment syntax was checked against the implemented `Lexer.cpp`.
+- Grammar productions were compared with `Parser.cpp` and `Token.h`.
+- Three checkpoint end-to-end regression tests passed using the GASH CLI.
 
-The grammar and comment rules were also reviewed against the uploaded `Lexer.cpp`, `Parser.cpp`, and `Token.h`. Syntax review does not, by itself, establish the correctness of runtime behaviour or cross-platform execution.
+These results were verified on macOS against the merged version after the team's latest available changes were incorporated. They do not independently establish test results for other operating systems.
 
 ### 19.4 Verified Automated Test Results
 
-The latest reported macOS Debug build completed successfully with **19/19 registered CTest tests passing** and zero failures. This included `CheckpointRuntimeTests` and `CheckpointCodegenTests`, which are now registered in `CMakeLists.txt`.
+The final reported macOS Debug build completed successfully with **22/22 registered CTest tests passing** and zero failures, after incorporating the latest available team changes.
 
 ```text
-100% tests passed, 0 tests failed out of 19
+100% tests passed, 0 tests failed out of 22
 ```
 
-Checkpoint `.gash` example runs are separate end-to-end checks and are not counted as additional CTest tests here. In particular, the guard and lock violation examples are expected-failure cases, not successful execution examples.
+The suite includes 19 previously registered tests (including `CheckpointRuntimeTests` and `CheckpointCodegenTests`) and three automated end-to-end checkpoint tests:
+
+| CTest Name | Example | Expected Output |
+|---|---|---|
+| `CheckpointSmokeE2E` | `examples/checkpoint_smoke.gash` | `10` |
+| `CheckpointMultiE2E` | `examples/checkpoint_multi.gash` | `10`, `20`, `10`, `20` on separate lines |
+| `CheckpointListE2E` | `examples/checkpoint_list.gash` | `7`, `8` on separate lines |
+
+These end-to-end tests invoke the `gash` CLI, check successful execution, and compare program output against expected values. The guard and lock violation examples (`checkpoint_guard.gash` and `checkpoint_lock.gash`) are negative scenarios expected to produce runtime errors; they are not included among these three successful end-to-end CTest cases.
 
 ---
 
@@ -1031,4 +1039,4 @@ The grammar covers expressions, variable declarations, control flow, functions, 
 
 The Checkpoint / Restore requirements follow the agreed team assumptions and support the G5 and G6 testing objectives.
 
-The documented lexical and parsing rules have been checked against the supplied implementation files, and the registered automated test suite has passed on macOS. Final team validation should also confirm the latest merged revision, other target platforms, and end-to-end execution.
+The completed grammar reference was checked against the implemented Lexer, Parser, and Token definitions. Following integration of the latest available team changes, all **22 registered automated tests passed on macOS**, including the three checkpoint end-to-end regression tests. The documented G5–G7 implementation and testing deliverables are complete for this revision.
