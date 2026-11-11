@@ -1,6 +1,12 @@
+#if __has_include("../include/Lexer.h")
+#include "../include/Lexer.h"
+#include "../include/LexicalError.h"
+#include "../include/Token.h"
+#else
 #include "Lexer.h"
 #include "LexicalError.h"
 #include "Token.h"
+#endif
 
 #include <functional>
 #include <iostream>

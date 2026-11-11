@@ -5,8 +5,13 @@
 #include <string>
 #include <vector>
 
+#if __has_include("../include/AST.h")
+#include "../include/AST.h"
+#include "../include/CodeGenerator.h"
+#else
 #include "AST.h"
 #include "CodeGenerator.h"
+#endif
 
 using namespace gash;
 

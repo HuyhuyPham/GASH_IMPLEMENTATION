@@ -1,5 +1,10 @@
+#if __has_include("../include/CompilerPipeline.h")
+#include "../include/CompilerPipeline.h"
+#include "../include/CodeGenerator.h"
+#else
 #include "CompilerPipeline.h"
 #include "CodeGenerator.h"
+#endif
 
 #include <cerrno>
 #include <cstdlib>

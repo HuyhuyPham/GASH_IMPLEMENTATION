@@ -1,9 +1,18 @@
+#if __has_include("../runtime/Checkpoint.h")
+#include "../runtime/Checkpoint.h"
+#include "../runtime/Environment.h"
+#include "../runtime/Guard.h"
+#include "../include/Lexer.h"
+#include "../include/Parser.h"
+#include "../runtime/Value.h"
+#else
 #include "Checkpoint.h"
 #include "Environment.h"
 #include "Guard.h"
 #include "Lexer.h"
 #include "Parser.h"
 #include "Value.h"
+#endif
 
 #include <cassert>
 #include <functional>

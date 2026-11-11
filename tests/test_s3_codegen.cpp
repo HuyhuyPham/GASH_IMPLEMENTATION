@@ -1,5 +1,9 @@
 
+#if __has_include("../include/CodeGenerator.h")
+#include "../include/CodeGenerator.h"
+#else
 #include "CodeGenerator.h"
+#endif
 
 #include <iostream>
 #include <memory>

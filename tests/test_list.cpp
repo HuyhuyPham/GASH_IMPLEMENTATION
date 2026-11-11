@@ -1,4 +1,8 @@
+#if __has_include("../runtime/List.h")
+#include "../runtime/List.h"
+#else
 #include "List.h"
+#endif
 
 #include <cstdint>
 #include <functional>

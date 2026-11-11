@@ -1,5 +1,10 @@
+#if __has_include("../include/CodeGenerator.h")
+#include "../include/CodeGenerator.h"
+#include "../include/Semantic.h"
+#else
 #include "CodeGenerator.h"
 #include "Semantic.h"
+#endif
 
 #include <cstddef>
 #include <iomanip>

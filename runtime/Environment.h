@@ -4,7 +4,11 @@
 #include "Checkpoint.h"
 #include "Guard.h"
 #include "List.h"
+#if __has_include("../include/Type.h")
+#include "../include/Type.h"
+#else
 #include "Type.h"
+#endif
 #include "Value.h"
 
 #include <cstddef>

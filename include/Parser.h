@@ -1,5 +1,6 @@
 
-#pragma once
+#ifndef GASH_PARSER_H
+#define GASH_PARSER_H
 
 #include "AST.h"
 #include "Token.h"
@@ -124,3 +125,5 @@ private:
 };
 
 } // namespace gash
+
+#endif // GASH_PARSER_H

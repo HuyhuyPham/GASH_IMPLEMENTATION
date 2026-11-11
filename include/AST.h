@@ -1,5 +1,6 @@
 
-#pragma once
+#ifndef GASH_AST_H
+#define GASH_AST_H
 
 #include <memory>
 #include <string>
@@ -342,3 +343,5 @@ struct Program {
 };
 
 } // namespace gash
+
+#endif // GASH_AST_H

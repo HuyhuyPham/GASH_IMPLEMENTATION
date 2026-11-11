@@ -1,4 +1,8 @@
+#if __has_include("../include/AST.h")
+#include "../include/AST.h"
+#else
 #include "AST.h"
+#endif
 #include <cassert>
 #include <iostream>
 #include <memory>

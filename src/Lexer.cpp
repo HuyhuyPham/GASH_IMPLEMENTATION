@@ -1,4 +1,8 @@
+#if __has_include("../include/Lexer.h")
+#include "../include/Lexer.h"
+#else
 #include "Lexer.h"
+#endif
 
 #include <cctype>
 #include <unordered_map>

@@ -1,3 +1,17 @@
+#if __has_include("../runtime/Budget.h")
+#include "../runtime/Budget.h"
+#include "../runtime/Checkpoint.h"
+#include "../include/CodeGenerator.h"
+#include "../runtime/Environment.h"
+#include "../runtime/Guard.h"
+#include "../runtime/Inspect.h"
+#include "../include/Lexer.h"
+#include "../runtime/List.h"
+#include "../include/Parser.h"
+#include "../include/Semantic.h"
+#include "../include/Type.h"
+#include "../runtime/Value.h"
+#else
 #include "Budget.h"
 #include "Checkpoint.h"
 #include "CodeGenerator.h"
@@ -10,6 +24,7 @@
 #include "Semantic.h"
 #include "Type.h"
 #include "Value.h"
+#endif
 
 #include <cassert>
 #include <iostream>

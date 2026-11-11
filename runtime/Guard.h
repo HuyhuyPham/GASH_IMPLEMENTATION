@@ -1,8 +1,13 @@
 #ifndef GASH_GUARD_H
 #define GASH_GUARD_H
 
+#if __has_include("../include/AST.h")
+#include "../include/AST.h"
+#include "../include/Type.h"
+#else
 #include "AST.h"
 #include "Type.h"
+#endif
 #include "Value.h"
 
 #include <cstddef>

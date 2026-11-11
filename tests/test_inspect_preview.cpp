@@ -1,5 +1,10 @@
+#if __has_include("../runtime/Inspect.h")
+#include "../runtime/Inspect.h"
+#include "../runtime/Preview.h"
+#else
 #include "Inspect.h"
 #include "Preview.h"
+#endif
 
 #include <iostream>
 #include <sstream>

@@ -3,9 +3,15 @@
 #include <iostream>
 #include <stdexcept>
 
+#if __has_include("../runtime/Checkpoint.h")
+#include "../runtime/Checkpoint.h"
+#include "../runtime/Environment.h"
+#include "../runtime/Value.h"
+#else
 #include "Checkpoint.h"
 #include "Environment.h"
 #include "Value.h"
+#endif
 
 using namespace gash;
 

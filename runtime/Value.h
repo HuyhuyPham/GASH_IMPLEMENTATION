@@ -1,7 +1,11 @@
 #ifndef GASH_VALUE_H
 #define GASH_VALUE_H
 
+#if __has_include("../include/Type.h")
+#include "../include/Type.h"
+#else
 #include "Type.h"
+#endif
 
 #include <algorithm>
 #include <cmath>

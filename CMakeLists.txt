@@ -83,6 +83,14 @@ if(BUILD_TESTING)
     target_link_libraries(test_checkpoint PRIVATE gash_core)
     add_test(NAME CheckpointTests COMMAND test_checkpoint)
 
+    add_executable(test_checkpoint_runtime tests/test_checkpoint_runtime.cpp)
+    target_link_libraries(test_checkpoint_runtime PRIVATE gash_core)
+    add_test(NAME CheckpointRuntimeTests COMMAND test_checkpoint_runtime)
+
+    add_executable(test_codegen_checkpoint tests/test_codegen_checkpoint.cpp)
+    target_link_libraries(test_codegen_checkpoint PRIVATE gash_core)
+    add_test(NAME CodegenCheckpointTests COMMAND test_codegen_checkpoint)
+
     add_executable(test_list tests/test_list.cpp)
     target_link_libraries(test_list PRIVATE gash_core)
     add_test(NAME ListTests COMMAND test_list)

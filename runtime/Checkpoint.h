@@ -1,4 +1,5 @@
-#pragma once
+#ifndef GASH_CHECKPOINT_H
+#define GASH_CHECKPOINT_H
 
 #include <any>
 #include <cstddef>
@@ -64,3 +65,5 @@ private:
 };
 
 } // namespace gash
+
+#endif // GASH_CHECKPOINT_H

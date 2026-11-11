@@ -3,8 +3,13 @@
 #include <iostream>
 #include <utility>
 
+#if __has_include("../include/Lexer.h")
+#include "../include/Lexer.h"
+#include "../include/Parser.h"
+#else
 #include "Lexer.h"
 #include "Parser.h"
+#endif
 
 using namespace gash;
 

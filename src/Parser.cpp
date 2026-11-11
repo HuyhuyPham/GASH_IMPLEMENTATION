@@ -1,7 +1,12 @@
 
+#if __has_include("../include/Parser.h")
+#include "../include/Parser.h"
+#else
 #include "Parser.h"
+#endif
 
 #include <stdexcept>
+#include <string>
 #include <utility>
 
 namespace gash {

@@ -1,7 +1,14 @@
+#if __has_include("../include/Lexer.h")
+#include "../include/Lexer.h"
+#include "../include/Parser.h"
+#include "../include/Semantic.h"
+#include "../include/Type.h"
+#else
 #include "Lexer.h"
 #include "Parser.h"
 #include "Semantic.h"
 #include "Type.h"
+#endif
 
 #include <cassert>
 #include <functional>

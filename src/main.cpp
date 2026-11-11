@@ -1,3 +1,12 @@
+#if __has_include("../include/CodeGenerator.h")
+#include "../include/CodeGenerator.h"
+#include "../include/CompilerPipeline.h"
+#include "../include/Lexer.h"
+#include "../include/LexicalError.h"
+#include "../include/Parser.h"
+#include "../include/Semantic.h"
+#include "../include/Token.h"
+#else
 #include "CodeGenerator.h"
 #include "CompilerPipeline.h"
 #include "Lexer.h"
@@ -5,6 +14,7 @@
 #include "Parser.h"
 #include "Semantic.h"
 #include "Token.h"
+#endif
 
 #include <filesystem>
 #include <fstream>
@@ -48,6 +58,13 @@ std::string readSourceFile(const fs::path& path) {
         throw std::runtime_error(
             "Failed to read source file: " + path.string()
         );
+    }
+
+    if (source.size() >= 3 &&
+        static_cast<unsigned char>(source[0]) == 0xEF &&
+        static_cast<unsigned char>(source[1]) == 0xBB &&
+        static_cast<unsigned char>(source[2]) == 0xBF) {
+        source.erase(0, 3);
     }
 
     return source;

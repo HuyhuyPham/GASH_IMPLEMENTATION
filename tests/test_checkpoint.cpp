@@ -9,7 +9,11 @@
 #include <variant>
 #include <vector>
 
+#if __has_include("../runtime/Checkpoint.h")
+#include "../runtime/Checkpoint.h"
+#else
 #include "Checkpoint.h"
+#endif
 
 using namespace gash;
 

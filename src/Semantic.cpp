@@ -1,4 +1,8 @@
+#if __has_include("../include/Semantic.h")
+#include "../include/Semantic.h"
+#else
 #include "Semantic.h"
+#endif
 
 #include <unordered_set>
 
