@@ -89,7 +89,11 @@ if(BUILD_TESTING)
 
     add_executable(test_codegen_checkpoint tests/test_codegen_checkpoint.cpp)
     target_link_libraries(test_codegen_checkpoint PRIVATE gash_core)
+<<<<<<< HEAD
     add_test(NAME CodegenCheckpointTests COMMAND test_codegen_checkpoint)
+=======
+    add_test(NAME CheckpointCodegenTests COMMAND test_codegen_checkpoint)
+>>>>>>> 9b7c8c9cb5aea907fcaca5ccc7272531147e2904
 
     add_executable(test_list tests/test_list.cpp)
     target_link_libraries(test_list PRIVATE gash_core)

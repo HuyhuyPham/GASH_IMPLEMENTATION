@@ -26,7 +26,7 @@ The grammar covers:
 
 The Parser is responsible for checking syntax and constructing AST nodes. Semantic validation, type checking, variable scopes, and runtime behaviour are handled by other components.
 
-This document follows the implemented parser design and the agreed team assumptions. The final grammar must be verified against the latest integrated Lexer and Parser.
+This document follows the implemented parser design and the agreed team assumptions. Its lexical and syntactic rules have been reviewed against the supplied `Lexer.cpp`, `Parser.cpp`, and `Token.h` files. Semantic validation, code generation, and runtime behaviour must be checked separately.
 
 ---
 
@@ -678,9 +678,21 @@ studentName
 calculateSum
 ```
 
-The exact identifier rules are defined by the Lexer.
+In the reviewed Lexer, identifiers begin with a letter or underscore (`_`) and continue with letters, digits, or underscores. Reserved keywords are tokenized separately and cannot be used where the Parser requires an `IDENTIFIER` token.
 
-### 14.2 Comments
+### 14.2 Literal Tokens
+
+The reviewed Lexer recognizes the following forms:
+
+- **Integers:** one or more decimal digits, such as `0` or `123`.
+- **Floats:** decimal digits, a decimal point, and at least one digit after the point, such as `3.14`. A trailing decimal point (for example `12.`), exponent notation, and letters attached to a number are not supported by the current numeric scanner.
+- **Strings:** double-quoted text without literal line breaks.
+- **Characters:** a single character or valid escape sequence between single quotes.
+- **Booleans:** the keywords `true` and `false`.
+
+Supported string and character escapes are `\n`, `\t`, `\r`, `\0`, `\\`, `\"`, and `\'`.
+
+### 14.3 Comments
 
 The GASH language design specifies single-line comments:
 
@@ -696,7 +708,7 @@ Multi-line comment
 ###
 ```
 
-These comment forms must be verified against the latest integrated `Lexer.cpp` before being treated as confirmed implementation behaviour.
+Both comment forms are confirmed in the reviewed `Lexer.cpp`. A `#` begins a single-line comment, while `###` begins a multi-line comment that ends at the next `###`. A `##` prefix also follows the single-line comment rule. An unterminated multi-line comment produces a lexical error.
 
 Comments are handled by the Lexer and do not produce statement AST nodes.
 
@@ -943,6 +955,8 @@ G6 includes Parser unit tests, Checkpoint tests, and the Grammar Reference.
 | `tests/test_parser_errors.cpp` | Invalid syntax and error handling |
 | `tests/test_parser_nested.cpp` | Nested statements and boundary cases |
 | `tests/test_checkpoint.cpp` | Checkpoint saving, restoration, and error handling |
+| `tests/test_checkpoint_runtime.cpp` | Checkpoint integration with the real Runtime Environment |
+| `tests/test_codegen_checkpoint.cpp` | Checkpoint/restore CodeGenerator integration |
 
 ### 19.2 Test Coverage
 
@@ -977,7 +991,17 @@ Before marking G6 complete, verify the following against the latest merged imple
 - Grammar productions match the current Parser and Token definitions.
 - Runtime integration and end-to-end tests are reported separately from helper-only tests.
 
-These are validation requirements, not a claim that every test has already passed.
+The grammar and comment rules were also reviewed against the uploaded `Lexer.cpp`, `Parser.cpp`, and `Token.h`. Syntax review does not, by itself, establish the correctness of runtime behaviour or cross-platform execution.
+
+### 19.4 Verified Automated Test Results
+
+The latest reported macOS Debug build completed successfully with **19/19 registered CTest tests passing** and zero failures. This included `CheckpointRuntimeTests` and `CheckpointCodegenTests`, which are now registered in `CMakeLists.txt`.
+
+```text
+100% tests passed, 0 tests failed out of 19
+```
+
+Checkpoint `.gash` example runs are separate end-to-end checks and are not counted as additional CTest tests here. In particular, the guard and lock violation examples are expected-failure cases, not successful execution examples.
 
 ---
 
@@ -1007,4 +1031,4 @@ The grammar covers expressions, variable declarations, control flow, functions, 
 
 The Checkpoint / Restore requirements follow the agreed team assumptions and support the G5 and G6 testing objectives.
 
-This document can serve as the final G6 Grammar Reference after the test results and grammar rules have been verified against the latest merged implementation.
+The documented lexical and parsing rules have been checked against the supplied implementation files, and the registered automated test suite has passed on macOS. Final team validation should also confirm the latest merged revision, other target platforms, and end-to-end execution.
