@@ -122,4 +122,31 @@ if(BUILD_TESTING)
     add_executable(test_integration tests/test_integration.cpp)
     target_link_libraries(test_integration PRIVATE gash_core)
     add_test(NAME IntegrationTests COMMAND test_integration)
+
+    add_test(
+        NAME CheckpointSmokeE2E
+        COMMAND ${CMAKE_COMMAND}
+            "-DGASH_EXECUTABLE=$<TARGET_FILE:gash>"
+            "-DGASH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/examples/checkpoint_smoke.gash"
+            "-DEXPECTED_LINES=10"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_gash_example.cmake"
+    )
+
+    add_test(
+        NAME CheckpointMultiE2E
+        COMMAND ${CMAKE_COMMAND}
+            "-DGASH_EXECUTABLE=$<TARGET_FILE:gash>"
+            "-DGASH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/examples/checkpoint_multi.gash"
+            "-DEXPECTED_LINES=10|20|10|20"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_gash_example.cmake"
+    )
+
+    add_test(
+        NAME CheckpointListE2E
+        COMMAND ${CMAKE_COMMAND}
+            "-DGASH_EXECUTABLE=$<TARGET_FILE:gash>"
+            "-DGASH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/examples/checkpoint_list.gash"
+            "-DEXPECTED_LINES=7|8"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_gash_example.cmake"
+    )
 endif()
