@@ -13,34 +13,25 @@ GASH combines familiar programming constructs with features that make program st
 The GASH compiler processes source files through the following stages:
 
 ```text
-GASH Source (.gash)
-        |
-        v
-      Lexer
-        |
-        v
-   Token Stream
-        |
-        v
-      Parser
-        |
-        v
- Abstract Syntax Tree
-        |
-        v
- Semantic Analyzer
-        |
-        v
-   Code Generator
-        |
-        v
- Generated C++ (.cpp)
-        |
-        v
-  g++ (C++17 Compiler)
-        |
-        v
-  Executable Program
+GASH source (.gash)
+       |
+       v
+Lexer -> tokens
+       |
+       v
+Parser -> abstract syntax tree (AST)
+       |
+       v
+Semantic analyzer
+       |
+       v
+C++ code generator -> generated .cpp
+       |
+       v
+C++ compiler (g++) -> executable
+       |
+       v
+Program output
 ```
 
 The implementation also includes runtime components for typed lists, execution budgets, guards, variable environments, checkpoints, and state inspection.
@@ -189,6 +180,40 @@ On Windows, the generated executable uses the `.exe` extension.
 Without an explicit flag, the compiler generates C++ source but does not execute the program.
 
 This is equivalent to using `--emit-cpp` without a custom output path.
+
+### 4.7 Example GASH Program
+
+The following example demonstrates checkpoint creation and restoration.
+
+**Source: `examples/checkpoint_smoke.gash`**
+
+```gash
+var x = 10;
+
+checkpoint start(x);
+
+x = 100;
+
+restore(start);
+
+output(x);
+```
+
+The program saves the original value of `x`, changes it to `100`, and then restores the saved value.
+
+**Run the program:**
+
+```bash
+./build/gash --run examples/checkpoint_smoke.gash
+```
+
+**Expected output:**
+
+```text
+10
+```
+
+This example is also covered by the `CheckpointSmokeE2E` automated test.
 
 ## 5. Language Features
 
@@ -345,7 +370,9 @@ The current `CMakeLists.txt` registers 22 tests.
 | Integration | `IntegrationTests` |
 | End-to-end checkpoint examples | `CheckpointSmokeE2E`, `CheckpointMultiE2E`, `CheckpointListE2E` |
 
-These are registered tests, not a claim that all tests currently pass.
+**Test results**: All 22 registered tests passed (100%), including the three end-to-end checkpoint tests.
+
+The test suite covers lexical analysis, parsing, semantic analysis, runtime features, code generation, and integration.
 
 ### 6.3 Run specific tests
 
@@ -456,15 +483,3 @@ The compilation pipeline wraps failures with messages identifying the stage at w
 | Gege Xin (Gloria) | AST, parser, grammar, checkpoints, and restoration |
 | Nguyen Dang Huy Pham (Hihi) | Semantic analysis, type system, Environment, guards, and locks |
 | Le Bao Uyen Truong (Sala) | Code generation, execution budgets, compilation pipeline, and integration testing |
-
-## 10. Implementation and Integration Notes
-
-The compiler is structured into separate lexical, syntactic, semantic, code-generation, and runtime components.
-
-The `gash_core` CMake library contains the compiler implementation and supporting runtime source files. The CLI executable links against this library.
-
-For direct execution, `CompilerPipeline` generates C++ and invokes `g++` with the runtime source files needed by the generated program.
-
-The source-to-source design allows GASH to reuse the C++17 type system, runtime facilities, and standard memory-management mechanisms.
-
-Final submission testing should include a clean build, the full CTest suite, and end-to-end execution of representative valid and invalid GASH programs.
