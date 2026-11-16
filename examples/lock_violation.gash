@@ -1,0 +1,4 @@
+var count = 10;
+lock count;
+count = 20;
+output(999);

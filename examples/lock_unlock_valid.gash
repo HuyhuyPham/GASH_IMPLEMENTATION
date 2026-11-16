@@ -1,0 +1,5 @@
+var count = 10;
+lock count;
+unlock count;
+count = 20;
+output(count);

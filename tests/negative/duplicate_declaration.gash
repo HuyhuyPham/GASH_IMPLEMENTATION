@@ -1,0 +1,3 @@
+# Semantic error: duplicate declaration in same scope.
+var x = 1;
+var x = 2;

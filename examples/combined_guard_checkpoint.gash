@@ -1,0 +1,6 @@
+var balance = 100;
+guard balance >= 0;
+checkpoint original(balance);
+balance = 250;
+restore(original);
+output(balance);

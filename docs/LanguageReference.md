@@ -26,7 +26,12 @@ Its principal language features include:
 
 GASH is implemented as a source-to-source compiler that translates `.gash` programs into C++17. Compilation consists of lexical analysis, parsing, semantic analysis, and code generation. The generated source is subsequently compiled into an executable using `g++`.
 
-This document describes the language's syntax, type system, execution semantics, built-in functions, and runtime behaviour. Formal grammar productions are provided separately in [Grammar.md](Grammar.md).
+This document describes the language's syntax, type system, execution semantics, built-in functions, and runtime behaviour.
+
+For further technical details, see:
+
+- [Grammar Reference](Grammar.md) — Formal syntax, EBNF productions, and operator precedence.
+- [Compiler and Runtime Architecture](Architecture.md) — Compilation pipeline, component design, and implementation of runtime features.
 
 ## 2. Lexical Structure
 
@@ -651,140 +656,12 @@ Checkpoint restoration is coordinated by the runtime checkpoint manager.
 
 ### 9.5 Restoration Validation
 
-Restoring a checkpoint is subject to the language's type, scope, and mutation rules. Before changing any live variables, GASH validates the saved state against the current runtime environment.
+Restoration validates the state required to recover selected variables.
 
-A restoration is rejected if:
+Relevant validation includes variable identity, scope, type compatibility, and applicable mutation
 
-- The named checkpoint does not exist.
-- A variable recorded in the checkpoint no longer exists or no longer refers to the original binding.
-- The variable's scope or binding identity is incompatible with the saved snapshot.
-- The variable's declared type is incompatible with the saved type.
-- A target variable is locked, or an applicable guard rejects the saved value.
+## Related Documentation
 
-A variable with the same name as a previously saved variable is not necessarily the same variable. For example, declaring a replacement variable after the original binding has gone out of scope does not make the replacement a valid restoration target.
-
-Restoration does not bypass locks or guards. If any check fails, the restore operation is rejected without applying any saved values.
-
-### 9.6 Atomic and Repeatable Restoration
-
-Restoration is **atomic**: all target variables must pass validation before any of them are updated. A failed restore therefore cannot leave the program in a partially restored state.
-
-A checkpoint also remains available after a successful restore, so its saved state can be applied more than once.
-
-```gash
-var x = 10;
-var y = 20;
-
-checkpoint saved(x, y);
-
-x = 100;
-y = 200;
-restore(saved);
-output(x);
-output(y);
-
-x = 7;
-y = 8;
-restore(saved);
-output(x);
-output(y);
-```
-
-Expected output:
-
-```text
-10
-20
-10
-20
-```
-
-If either `x` or `y` were locked at the time of restoration, the entire restore operation would fail; neither variable would be partially restored.
-
-### 9.7 List Snapshots and Scope
-
-Checkpoint snapshots of lists are independent copies of the saved list state. This includes element values, initialized and uninitialized positions, logical size, and capacity metadata. Changes made to the live list after a checkpoint do not modify the saved snapshot.
-
-```gash
-var numbers = list<int>(3);
-numbers[0] = 7;
-numbers[1] = 8;
-
-checkpoint original(numbers);
-
-numbers[0] = 99;
-numbers[1] = 100;
-
-restore(original);
-output(numbers[0]);
-output(numbers[1]);
-```
-
-Expected output:
-
-```text
-7
-8
-```
-
-The third list position remains uninitialized because it was uninitialized when the checkpoint was created.
-
-Checkpoint restoration also respects lexical scope and binding identity. A checkpoint cannot be used to overwrite a different variable merely because that variable has the same name as a saved one.
-
----
-
-## 10. Execution Budgets
-
-An execution budget places an explicit limit on the work performed within a block. It is written using the `budget` keyword, a parenthesized limit expression, and a braced block.
-
-```gash
-budget (10) {
-    output("Hello");
-}
-```
-
-The compiler translates budget statements into C++17 code that uses the GASH budget runtime. Instrumented operations in the budgeted block are counted against the applicable limit.
-
-A budget constrains execution rather than measuring elapsed wall-clock time. When a limit is exceeded, the runtime stops normal execution of the affected budgeted block using its budget-exceeded handling mechanism. A budget does not change the static types of variables or override existing guard and lock rules.
-
----
-
-## 11. Error Handling
-
-GASH checks program correctness at multiple stages. Some errors can be detected before generating C++ code; others depend on runtime state and can only be detected during execution.
-
-| Stage | Examples |
-|---|---|
-| Lexical analysis | Invalid characters, malformed literals, invalid escape sequences, or unterminated comments |
-| Syntax analysis | Missing delimiters, malformed statements, or incorrectly structured expressions |
-| Semantic analysis | Undeclared names, incompatible types, invalid function calls, or invalid loop-control statements |
-| Runtime execution | Out-of-bounds list access, reading an uninitialized list element, guard violations, attempts to modify locked variables, or invalid checkpoint restoration |
-
-For example, reading an uninitialized list position is syntactically valid but fails when the program executes:
-
-```gash
-var numbers = list<int>(2);
-output(numbers[0]);
-```
-
-Similarly, restoring a checkpoint may be rejected at runtime if a saved variable is no longer valid or is currently locked.
-
-The command-line compiler provides different modes for inspecting tokens, validating source code, generating C++17 code, and compiling and running a program. See the project README for the commands and their diagnostic output.
-
----
-
-## 12. Related Documentation
-
-- [README](../README.md) — Project overview, build requirements, command-line usage, and test instructions.
-- [Grammar Reference](Grammar.md) — Formal syntax, production rules, and parser-related restrictions.
-- [Checkpoint smoke example](../examples/checkpoint_smoke.gash) — Basic checkpoint and restore operation.
-- [Multiple-variable checkpoint example](../examples/checkpoint_multi.gash) — Repeated restoration of multiple variables.
-- [List checkpoint example](../examples/checkpoint_list.gash) — Restoration of independent list snapshots.
-
----
-
-## 13. Summary
-
-Transparent GASH combines conventional imperative programming constructs with explicit mechanisms for inspecting and controlling program state. Its transparency features include list inspection, variable previews, mutation guards, locks, checkpoints, restoration, and execution budgets.
-
-The language is implemented as a C++17 source-to-source compiler. Together, its compiler stages and runtime support enable programmers to inspect state, constrain modifications, and restore previously saved values under defined language rules.
+- [README](../README.md) — Project overview, installation, build instructions, and testing.
+- [Grammar Reference](Grammar.md) — Complete grammar, syntax rules, and examples.
+- [Compiler and Runtime Architecture](Architecture.md) — Compiler pipeline, type system, Environment, guards, locks, checkpoints, and runtime implementation.

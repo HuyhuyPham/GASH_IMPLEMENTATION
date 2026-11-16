@@ -1,0 +1,5 @@
+var x = 10;
+checkpoint initial(x);
+x = 100;
+restore(initial);
+output(x);

@@ -1,0 +1,4 @@
+var numbers = list<int>(3);
+numbers[0] = 7;
+numbers[2] = 9;
+inspect(numbers);

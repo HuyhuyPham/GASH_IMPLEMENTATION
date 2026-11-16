@@ -2,174 +2,210 @@
 
 **A transparency-first programming language implemented in C++17**
 
-Transparent GASH is a custom programming language developed for the COMP2001 Programming Languages project. It is designed around the principle:
+Transparent GASH is a programming language developed for the COMP2001 Programming Languages project. It is designed around the principle:
 
 **“Nothing happens behind your back.”**
 
-GASH combines familiar programming constructs with features that make program state easier to inspect, control, and restore. The language is implemented as a source-to-source compiler that translates GASH programs into C++17.
+GASH combines familiar programming constructs with transparency-oriented features that make program state easier to inspect, control, and restore.
+
+The language is implemented as a source-to-source compiler that translates `.gash` programs into C++17 code. Its runtime provides support for typed lists, mutation guards, explicit locking, checkpoints, state inspection, and execution budgets.
+
+---
 
 ## 1. Project Overview
 
-The GASH compiler processes source files through the following stages:
+The GASH compiler follows a multi-stage compilation pipeline:
 
 ```text
-GASH source (.gash)
-       |
-       v
-Lexer -> tokens
-       |
-       v
-Parser -> abstract syntax tree (AST)
-       |
-       v
-Semantic analyzer
-       |
-       v
-C++ code generator -> generated .cpp
-       |
-       v
-C++ compiler (g++) -> executable
-       |
-       v
-Program output
+GASH Source (.gash)
+        |
+        v
+       Lexer
+        |
+        v
+   Token Stream
+        |
+        v
+      Parser
+        |
+        v
+ Abstract Syntax Tree
+        |
+        v
+  Semantic Analyzer
+        |
+        v
+   Code Generator
+        |
+        v
+ Generated C++17
+        |
+        v
+ C++ Compiler (g++)
+        |
+        v
+ Native Executable
+        |
+        v
+   Program Output
 ```
 
-The implementation also includes runtime components for typed lists, execution budgets, guards, variable environments, checkpoints, and state inspection.
+Each compiler stage has a distinct responsibility:
+
+1. **Lexical analysis:** Converts source code into tokens and identifies lexical errors.
+2. **Parsing:** Constructs an Abstract Syntax Tree (AST) using recursive-descent parsing.
+3. **Semantic analysis:** Validates types, declarations, variable scopes, function calls, and language-specific constraints.
+4. **Code generation:** Translates validated AST constructs into C++17.
+5. **Compilation and execution:** Compiles generated source using `g++` and executes the resulting program.
+
+The generated programs use GASH runtime components to enforce language-specific behaviour, including mutation restrictions, variable-state management, checkpoints, and execution budgets.
+
+### 1.1 Documentation
+
+The repository contains three additional reference documents:
+
+| Document | Description |
+|---|---|
+| [Grammar Reference](docs/Grammar.md) | Defines formal syntax, EBNF productions, operator precedence, and valid and invalid syntax examples. |
+| [Language Reference](docs/LanguageReference.md) | Explains language features, type rules, control flow, built-in functions, and execution semantics. |
+| [Compiler and Runtime Architecture](docs/Architecture.md) | Describes the compilation pipeline, component responsibilities, runtime Environment, guards, locks, checkpoints, and memory management. |
+
+These documents complement the build, execution, and testing instructions provided in this README.
+
+---
 
 ## 2. Requirements
 
-To build and run the project, install:
+The following tools are required:
 
-- CMake 3.16 or later
-- A C++ compiler supporting C++17
-- `g++` available in the system's `PATH` for GASH's `--run` command
-- CTest, included with CMake
+- **CMake 3.16 or later** for project configuration and building.
+- **A C++17-compatible compiler** for compiling the GASH implementation.
+- **`g++` available in the system's `PATH`** for the GASH `--run` command.
+- **CTest**, included with CMake, for automated testing.
 
-The project uses the C++17 standard and is configured with CMake.
+The project uses C++17 and is configured through `CMakeLists.txt`.
 
-The CLI includes platform-specific process execution code for Windows and POSIX systems. The build and test instructions below should be verified on each target platform before claiming full cross-platform support.
+The implementation includes platform-specific execution support for POSIX systems and Windows. The reported successful build and test results were obtained on macOS; other target platforms should be tested separately.
+
+---
 
 ## 3. Building the Compiler
 
-Open a terminal in the project's root directory.
+Open a terminal in the repository's root directory.
 
-### Step 1: Configure the project
+### 3.1 Configure the Project
 
 ```bash
 cmake -S . -B build
 ```
 
-### Step 2: Build
+This configures the project and generates its build files.
+
+### 3.2 Build
 
 ```bash
 cmake --build build
 ```
 
-This builds the GASH compiler, shared compiler/runtime library, and configured test executables.
+This builds the GASH compiler, its compiler/runtime support library, and the configured test executables.
 
-On macOS and Linux with the current CMake configuration, the compiler executable is:
+On macOS and Linux, the compiler executable is expected at:
 
 ```text
 build/gash
 ```
 
-### Clean and rebuild
+### 3.3 Clean and Rebuild
+
+To clean and rebuild the project:
 
 ```bash
 cmake --build build --target clean
 cmake --build build
 ```
 
-To force a fresh CMake configuration, remove the generated `build/` directory and configure the project again.
+For a completely fresh configuration, remove the generated `build/` directory before running the configuration and build commands again.
 
-### Alternative: Direct Build with `g++` (Without CMake)
-
-If `cmake` is not installed (for example, in a minimal MinGW/MSYS2 or POSIX environment), compile the `gash` CLI directly from the repository root:
-
-```bash
-g++ -std=c++17 -Iinclude -Iruntime src/main.cpp src/Lexer.cpp src/Parser.cpp src/Semantic.cpp src/CodeGenerator.cpp src/CompilerPipeline.cpp runtime/Budget.cpp runtime/Checkpoint.cpp runtime/Guard.cpp runtime/Environment.cpp runtime/Inspect.cpp runtime/List.cpp runtime/Preview.cpp runtime/Value.cpp -o gash
-```
-
-On Windows, use `-o gash.exe` and invoke `.\gash.exe --run examples/hello.gash`.
+---
 
 ## 4. Using the GASH Compiler
 
-The command-line interface supports token inspection, lexical/syntax/semantic validation, C++ generation, and direct compilation and execution.
+The GASH command-line interface provides several modes for inspecting, validating, generating, and executing programs.
 
-### 4.1 Display help
+### 4.1 Display Help
 
 ```bash
 ./build/gash --help
 ```
 
-### 4.2 Tokenize a source file
+Displays the available command-line options.
+
+### 4.2 Tokenize a Source File
 
 ```bash
 ./build/gash --tokens examples/checkpoint_smoke.gash
 ```
 
-The lexer prints each recognized token with its type, lexeme, line number, and column number.
+This performs lexical analysis and displays recognized tokens, including their types, lexemes, line numbers, and column numbers.
 
-This mode performs lexical analysis without continuing to parsing or semantic validation.
+The tokenization mode does not perform parsing or semantic analysis.
 
-### 4.3 Check a source file
+### 4.3 Validate a Source File
 
 ```bash
 ./build/gash --check examples/checkpoint_smoke.gash
 ```
 
-This mode performs:
+This command performs lexical analysis, parsing, and semantic analysis without compiling or executing the generated C++.
 
-1. Lexical analysis
-2. Syntax analysis
-3. Semantic analysis
-
-On successful validation, the CLI prints:
+On successful validation, the compiler prints:
 
 ```text
 Lexical, syntax, and semantic checks passed.
 ```
 
-This command does not compile or execute the resulting C++ program.
+Errors are reported if the program violates lexical, syntactic, or semantic rules.
 
-### 4.4 Generate C++ code
+### 4.4 Generate C++17 Source
 
 ```bash
 ./build/gash --emit-cpp examples/checkpoint_smoke.gash
 ```
 
-By default, the generated C++ file is written beside the source file, using the same filename with a `.cpp` extension:
+This validates the program and generates the corresponding C++17 source file.
+
+By default, the output is placed beside the input:
 
 ```text
 examples/checkpoint_smoke.cpp
 ```
 
-To specify a different output path:
+A custom output path may also be supplied:
 
 ```bash
 ./build/gash --emit-cpp examples/checkpoint_smoke.gash build/generated.cpp
 ```
 
-The compiler performs lexical, syntax, and semantic analysis before generating the C++ source.
+This mode generates C++ source but does not execute it.
 
-### 4.5 Compile and run a GASH program
+### 4.5 Compile and Execute a Program
 
 ```bash
 ./build/gash --run examples/checkpoint_smoke.gash
 ```
 
-This mode performs the full compilation pipeline:
+The `--run` mode performs the complete compilation and execution process:
 
 1. Reads the GASH source file.
-2. Tokenizes and parses the program.
-3. Performs semantic analysis.
-4. Generates the corresponding C++ source.
-5. Compiles the generated C++ with `g++ -std=c++17`.
+2. Performs lexical and syntax analysis.
+3. Performs semantic validation.
+4. Generates C++17 source code.
+5. Compiles the generated source using `g++ -std=c++17`.
 6. Links the required GASH runtime implementation files.
-7. Executes the resulting program.
-8. Returns the executable's exit status.
+7. Executes the compiled program.
+8. Returns the program's exit status.
 
-By default, the generated files use the source filename:
+By default, generated files are placed beside the input source file:
 
 ```text
 examples/checkpoint_smoke.gash
@@ -179,23 +215,23 @@ examples/checkpoint_smoke.out
 
 On Windows, the generated executable uses the `.exe` extension.
 
-**Note:** `--run` writes generated files beside the input file and may overwrite existing files with the same generated paths.
+**Note:** The `--run` command may overwrite existing generated files at the corresponding output paths.
 
-### 4.6 Default command
+### 4.6 Default Command
 
 ```bash
 ./build/gash examples/checkpoint_smoke.gash
 ```
 
-Without an explicit flag, the compiler generates C++ source but does not execute the program.
+Without an explicit mode flag, GASH validates the program and generates C++ source without executing it.
 
-This is equivalent to using `--emit-cpp` without a custom output path.
+This is equivalent to `--emit-cpp` without a custom output path.
 
-### 4.7 Example GASH Program
+### 4.7 Example Program: Checkpoint and Restore
 
-The following example demonstrates checkpoint creation and restoration.
+The following example demonstrates GASH's checkpoint and restoration functionality.
 
-**Source: `examples/checkpoint_smoke.gash`**
+**Source:** `examples/checkpoint_smoke.gash`
 
 ```gash
 var x = 10;
@@ -209,9 +245,9 @@ restore(start);
 output(x);
 ```
 
-The program saves the original value of `x`, changes it to `100`, and then restores the saved value.
+The program saves the original value of `x`, modifies it, and then restores the saved value.
 
-**Run the program:**
+Run the example:
 
 ```bash
 ./build/gash --run examples/checkpoint_smoke.gash
@@ -225,124 +261,190 @@ The program saves the original value of `x`, changes it to `100`, and then resto
 
 This example is also covered by the `CheckpointSmokeE2E` automated test.
 
+---
+
 ## 5. Language Features
 
-### 5.1 Variables and static types
+GASH combines statically typed imperative programming with explicit runtime transparency mechanisms.
 
-Variables use the `var` keyword and require an initializer.
+For complete syntax and semantics, refer to the [Language Reference](docs/LanguageReference.md).
 
-```text
+### 5.1 Variables and Static Types
+
+Variables are declared using `var` and require an initializer.
+
+```gash
 var age = 20;
 var price = 15.5;
 var name = "Alice";
 var active = true;
 ```
 
-The language infers a variable's type from its initializer. Variables retain their established type.
+Supported primitive types are:
 
-### 5.2 Expressions and control flow
+- `int`
+- `float`
+- `bool`
+- `char`
+- `string`
 
-GASH is designed to support arithmetic, comparison, and logical expressions, along with conditional statements, loops, and functions.
+Variable types are inferred from their initializers and remain fixed throughout their lifetimes.
 
-The language uses braces and semicolons for program structure.
+GASH uses strict type checking and supports explicit type conversions.
 
-Loop-control keywords include `exit` and `skip`, corresponding to the traditional concepts of breaking and continuing loops.
+```gash
+var x = 10;
+var y = float(x);
+var text = string(x);
+```
 
-### 5.3 Typed lists
+### 5.2 Expressions and Control Flow
 
-GASH provides typed lists, with runtime support for:
+GASH supports:
 
-- Logical size and allocated capacity
-- Initialized and uninitialized positions
-- Bounds checking
-- Element access and assignment
-- Resizing
-- Independent copies
+- Arithmetic, comparison, and logical expressions
+- Conditional execution using `if` and `otherwise`
+- `while` and `repeat` loops
+- Loop control using `exit` and `skip`
+- Functions with explicitly typed parameters and inferred return types
+- Recursive functions
 
-The list implementation uses `std::vector<std::optional<T>>`, allowing the runtime to distinguish initialized elements from uninitialized slots.
+Blocks are enclosed in braces, and statements are terminated with semicolons.
 
-### 5.4 `inspect()`
+### 5.3 Typed Lists
 
-The `inspect()` feature displays list metadata, including:
+GASH provides typed lists, including:
 
-- Element type
-- Logical size
-- Allocated capacity
-- Element positions
-- Initialized values and uninitialized slots
+```gash
+var numbers = list<int>(3);
 
-Inspection does not modify the list.
+numbers[0] = 10;
+numbers[1] = 20;
 
-### 5.5 `preview()`
+output(numbers[0]);
+```
 
-The `preview()` feature is designed to display the current runtime variable state.
+Lists support logical size, capacity, initialized and uninitialized positions, bounds checking, element assignment, resizing, and independent value-copy semantics.
 
-Its runtime interface supports variable names, types, values, locking status, and scope information.
+The underlying list implementation uses `std::vector<std::optional<T>>`, allowing it to distinguish initialized elements from uninitialized positions.
 
-The implementation obtains variable snapshots through a registered provider, so end-to-end operation depends on integration with the runtime Environment.
+List sizes can be modified using `extend()`.
 
-### 5.6 Guards
+### 5.4 List Inspection — `inspect()`
 
-Guards constrain the permitted values of variables.
+The `inspect()` function provides a read-only view of a list's state.
 
-For example:
+```gash
+var values = list<int>(2);
+values[0] = 7;
 
-```text
+inspect(values);
+```
+
+Inspection information includes element type, logical size, capacity, initialized positions, and stored values.
+
+Uninitialized positions are identified separately.
+
+### 5.5 Variable Preview — `preview()`
+
+The `preview()` function displays information about active runtime variables.
+
+```gash
+var x = 10;
+preview();
+```
+
+The generated program registers its runtime Environment as the preview provider.
+
+The Environment supplies information about variable names, declared types, values, lock states, and lexical scopes.
+
+### 5.6 Mutation Guards
+
+Guards define conditions that restrict permitted changes to program state.
+
+```gash
 var balance = 100;
 guard balance >= 0;
 ```
 
-According to the language specification, a guard violation rejects the invalid modification and terminates execution.
+Mutations are validated against applicable guards.
 
-### 5.7 Lock and unlock
+If an invalid modification violates a guard, the runtime rejects the modification, restores the previous value through its rollback mechanism, and reports an error.
 
-GASH provides explicit control over variable mutability:
+### 5.7 Lock and Unlock
 
-```text
+GASH provides explicit control over variable mutability.
+
+```gash
 var count = 10;
+
 lock count;
 unlock count;
+
 count = 20;
 ```
 
-A locked variable cannot be modified until its lock is released, subject to the language's mutation rules.
+A locked variable remains readable but cannot be modified through controlled runtime mutation operations until it is unlocked.
 
-### 5.8 Checkpoints and restoration
+Locks also restrict list element modifications, list resizing, and restoration of locked variables.
 
-Checkpoints support saving selected program state and restoring it later.
+### 5.8 Checkpoints and Restoration
 
-```text
+Checkpoints save selected variable values under a named label.
+
+```gash
 var x = 10;
+
 checkpoint initial(x);
+
 x = 20;
+
 restore(initial);
+
+output(x);
 ```
 
-The implementation includes checkpoint runtime support and dedicated checkpoint tests.
+**Expected output:**
 
-Restoration must preserve state consistency and respect the applicable mutation and scope rules.
+```text
+10
+```
 
-### 5.9 Execution budgets
+Checkpoint snapshots preserve variable information needed for restoration, including types, scope information, and independent copies of saved values.
 
-Execution budgets provide a mechanism for limiting operations within a designated section of code.
+Restoration validates applicable variable identities, lock restrictions, and guards before committing restored state.
 
-The compiler and runtime include dedicated budget components.
+### 5.9 Execution Budgets
 
-### 5.10 Automatic resource cleanup
+Execution budgets restrict the number of counted operations performed within a designated block.
 
-Typed lists use C++ RAII-based ownership.
+```gash
+budget (10) {
+    output("Hello");
+}
+```
 
-Resources owned by list objects are automatically released when those objects are destroyed. This includes normal scope exit and C++ exception unwinding.
+The generated program uses `BudgetScope` to track operation allowances.
 
-GASH programmers do not need to call a separate `cleanup()` function.
+Nested budgets are supported. If a budget is exhausted, the runtime raises a `BudgetExceeded` exception.
 
-This behaviour is tested using the dedicated automatic-cleanup test suite.
+### 5.10 Automatic Resource Management
 
-## 6. Testing
+GASH lists use C++ RAII-based ownership.
 
-The project uses CTest for automated testing.
+List-owned storage is released automatically when the corresponding objects are destroyed.
 
-### 6.1 Run all tests
+This includes normal scope exit and applicable exception unwinding.
+
+GASH programs do not require an explicit `cleanup()` function for list-owned resources.
+
+---
+
+## 6. Automated Testing
+
+The project uses CTest for automated testing across the compiler and runtime components.
+
+### 6.1 Run All Tests
 
 After building the project:
 
@@ -350,28 +452,28 @@ After building the project:
 ctest --test-dir build --output-on-failure
 ```
 
-To display more detailed output:
+For detailed test output:
 
 ```bash
 ctest --test-dir build -V
 ```
 
-To list registered tests without running them:
+To list all registered tests without executing them:
 
 ```bash
 ctest --test-dir build -N
 ```
 
-### 6.2 Test suites
+### 6.2 Registered Test Suites
 
-The current `CMakeLists.txt` registers 27 automated tests:
+The reported CMake configuration includes 22 registered tests.
 
 | Area | CTest test names |
 |---|---|
 | Lexical analysis | `LexerTests` |
 | AST and parsing | `AstTests`, `ParserTests`, `StatementParserTests`, `LexerParserTests`, `ParserErrorTests`, `ParserNestedTests` |
 | Semantic analysis | `SemanticTests` |
-| Guards and environment | `GuardLockEnvironmentTests` |
+| Guards and Environment | `GuardLockEnvironmentTests` |
 | Checkpoints | `CheckpointTests`, `CheckpointRuntimeTests`, `CodegenCheckpointTests` |
 | Lists | `ListTests` |
 | Inspection and preview | `InspectPreviewTests` |
@@ -380,21 +482,13 @@ The current `CMakeLists.txt` registers 27 automated tests:
 | Integration & E2E pipeline | `IntegrationTests`, `E2EPipelineTests` |
 | End-to-end `.gash` examples | `HelloE2E`, `ConditionsE2E`, `FunctionsE2E`, `LoopsE2E`, `CheckpointSmokeE2E`, `CheckpointMultiE2E`, `CheckpointListE2E` |
 
-The test suite covers lexical analysis, parsing, semantic analysis, runtime features, code generation, error diagnostics across all stages, and end-to-end compilation and execution.
+**Verified test results:** The latest reported macOS build passed all 22 registered CTest tests (100%), including the three checkpoint end-to-end tests.
 
-### 6.3 Run custom `.gash` test cases
+These results describe the tested project revision and do not constitute verification of every possible GASH program or target platform.
 
-You can test any custom `.gash` file directly using the CLI:
+### 6.3 Run Selected Tests
 
-```bash
-./build/gash --tokens path/to/custom.gash
-./build/gash --check path/to/custom.gash
-./build/gash --run path/to/custom.gash
-```
-
-### 6.4 Run specific tests
-
-Run the lexer tests:
+Run lexer tests:
 
 ```bash
 ctest --test-dir build -R '^LexerTests$' --output-on-failure
@@ -412,11 +506,11 @@ Run checkpoint and E2E pipeline tests:
 ctest --test-dir build -R 'Checkpoint|E2EPipeline' --output-on-failure
 ```
 
-### 6.5 End-to-end tests
+### 6.4 End-to-End Tests
 
-Seven CTest cases execute `.gash` examples through the full compiler pipeline:
+Three automated end-to-end tests execute checkpoint-based GASH programs through the compiler.
 
-| Test | Source file | Expected output lines |
+| CTest name | Source file | Expected output |
 |---|---|---|
 | `HelloE2E` | `examples/hello.gash` | `Hello, GASH!` |
 | `ConditionsE2E` | `examples/conditions.gash` | `High Distinction`, `Verified` |
@@ -426,19 +520,28 @@ Seven CTest cases execute `.gash` examples through the full compiler pipeline:
 | `CheckpointMultiE2E` | `examples/checkpoint_multi.gash` | `10`, `20`, `10`, `20` |
 | `CheckpointListE2E` | `examples/checkpoint_list.gash` | `7`, `8` |
 
-Additional examples in `examples/` include `variables.gash`, `lists.gash`, `transparency.gash`, and negative runtime-error demonstrations (`checkpoint_guard.gash` and `checkpoint_lock.gash`, which verify that guard violations and locked-variable restores abort cleanly with a runtime error).
+For multiple output values, each value appears on a separate line.
 
-These E2E tests are registered using `tests/run_gash_example.cmake` and `tests/test_e2e_pipeline.cpp`.
+These tests use `tests/run_gash_example.cmake` to execute the relevant GASH program and compare actual output against the expected result.
+
+They verify complete compilation and execution paths, complementing the unit and integration test suites.
+
+---
 
 ## 7. Project Structure
+
+The repository is organized into compiler, runtime, testing, example, and documentation directories.
 
 ```text
 GASH_IMPLEMENTATION/
 ├── CMakeLists.txt
 ├── README.md
 ├── include/
+│   ├── AST.h
+│   ├── Token.h
 │   ├── Lexer.h
 │   ├── Parser.h
+│   ├── Type.h
 │   ├── Semantic.h
 │   ├── CodeGenerator.h
 │   └── CompilerPipeline.h
@@ -450,15 +553,19 @@ GASH_IMPLEMENTATION/
 │   ├── CodeGenerator.cpp
 │   └── CompilerPipeline.cpp
 ├── runtime/
-│   ├── List.h
-│   ├── List.cpp
 │   ├── Value.h
-│   ├── Value.cpp
-│   ├── Budget.cpp
-│   ├── Checkpoint.cpp
-│   ├── Guard.cpp
+│   ├── List.h
+│   ├── Environment.h
 │   ├── Environment.cpp
+│   ├── Guard.h
+│   ├── Guard.cpp
+│   ├── Checkpoint.h
+│   ├── Checkpoint.cpp
+│   ├── Budget.h
+│   ├── Budget.cpp
+│   ├── Inspect.h
 │   ├── Inspect.cpp
+│   ├── Preview.h
 │   └── Preview.cpp
 ├── tests/
 │   ├── test_lexer.cpp
@@ -480,42 +587,75 @@ GASH_IMPLEMENTATION/
 │   ├── transparency.gash
 │   ├── checkpoint_smoke.gash
 │   ├── checkpoint_multi.gash
-│   ├── checkpoint_list.gash
-│   ├── checkpoint_guard.gash
-│   └── checkpoint_lock.gash
-├── docs/
-│   ├── Architecture.md
-│   ├── Grammar.md
-│   └── LanguageReference.md
-└── build/
-    └── Generated build outputs
+│   └── checkpoint_list.gash
+└── docs/
+    ├── Grammar.md
+    ├── LanguageReference.md
+    └── Architecture.md
 ```
 
-This is a simplified structural overview rather than an exhaustive file listing.
+This is a simplified directory overview rather than an exhaustive file listing.
+
+CMake generates build outputs inside `build/`, which is not part of the source directory structure.
+
+---
 
 ## 8. Error Handling
 
-The CLI handles errors at multiple stages.
+GASH reports errors during lexical analysis, parsing, semantic analysis, generated C++ compilation, and program execution.
 
-**Lexical errors** include the source filename, line number, and column number, followed by a diagnostic message.
+### 8.1 Lexical Errors
 
-Other errors are reported using the prefix:
+Lexical diagnostics identify the source location of invalid tokens or malformed literals.
 
-```text
-GASH error:
-```
+Reported information includes:
 
-The compiler returns a non-zero status for invalid arguments and compiler errors.
+- Source filename
+- Line number
+- Column number
+- Error description
 
-During `--run`, errors may originate from GASH analysis, generated C++ compilation, or execution of the compiled program.
+### 8.2 Syntax and Semantic Errors
 
-The compilation pipeline wraps failures with messages identifying the stage at which they occurred.
+Syntax errors are detected by the parser, while semantic errors are identified during type checking and declaration validation.
+
+Examples include malformed statements, incompatible assignments, undeclared variables, invalid function calls, and inappropriate statement contexts.
+
+### 8.3 Runtime Errors
+
+Runtime validation handles conditions such as:
+
+- List index violations
+- Access to uninitialized list elements
+- Lock violations
+- Guard violations
+- Invalid checkpoint restoration
+- Execution budget exhaustion
+- Invalid runtime conversions
+
+Invalid programs and failed compiler operations return non-zero exit statuses where applicable.
+
+Compilation failures and runtime errors are reported through the command-line interface or generated program diagnostics.
+
+---
 
 ## 9. Development Team
 
 | Member | Main responsibilities |
 |---|---|
-| Quynh Anh Tran (Atq) | Lexer, lexical errors, CLI/CMake, lists, inspect, preview, automatic cleanup tests, and documentation |
-| Gege Xin (Gloria) | AST, parser, grammar, checkpoints, and restoration |
-| Nguyen Dang Huy Pham (Hihi) | Semantic analysis, type system, Environment, guards, and locks |
-| Le Bao Uyen Truong (Sala) | Code generation, execution budgets, compilation pipeline, and integration testing |
+| Quynh Anh Tran | Lexer, lexical errors, CLI/CMake, lists, inspect, preview, automatic cleanup tests, and documentation |
+| Gege Xin | AST, parser, grammar, checkpoints, and restoration |
+| Nguyen Dang Huy Pham | Semantic analysis, type system, Environment, guards, and locks |
+| Le Bao Uyen Truong | Code generation, execution budgets, compilation pipeline, and integration testing |
+
+---
+
+## 10. Additional References
+
+For more detailed technical information:
+
+- [Grammar Reference](docs/Grammar.md) — Formal grammar and syntax restrictions.
+- [Language Reference](docs/LanguageReference.md) — Complete descriptions of language behaviour and built-in operations.
+- [Compiler and Runtime Architecture](docs/Architecture.md) — Internal compiler design, runtime components, and state-management mechanisms.
+
+The compiler and runtime source files provide the implementation corresponding to these documents.

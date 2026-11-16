@@ -1,0 +1,2 @@
+# Parser error: missing right operand.
+var x = (1 + );

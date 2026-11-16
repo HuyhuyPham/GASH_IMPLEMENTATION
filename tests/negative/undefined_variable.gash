@@ -1,0 +1,2 @@
+# Semantic error: x was never declared.
+output(x);

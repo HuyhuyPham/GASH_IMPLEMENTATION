@@ -1,0 +1,4 @@
+var balance = 100;
+var name = "GASH";
+lock balance;
+preview();

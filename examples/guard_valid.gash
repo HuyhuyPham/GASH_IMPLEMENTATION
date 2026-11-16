@@ -1,0 +1,4 @@
+var balance = 100;
+guard balance >= 0;
+balance = 75;
+output(balance);
