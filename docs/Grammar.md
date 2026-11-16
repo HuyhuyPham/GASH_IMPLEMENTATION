@@ -26,7 +26,7 @@ The grammar covers:
 
 The Parser is responsible for checking syntax and constructing AST nodes. Semantic validation, type checking, variable scopes, and runtime behaviour are handled by other components.
 
-This document reflects the completed parser design and the agreed team assumptions. Its lexical and syntactic rules were reviewed against `Lexer.cpp`, `Parser.cpp`, and `Token.h`. Semantic validation, code generation, and runtime behaviour are covered by separate implementation components and tests.
+This document reflects the completed parser design. Its lexical and syntactic rules were reviewed against `Lexer.cpp`, `Parser.cpp`, and `Token.h`. Semantic validation, code generation, and runtime behaviour are covered by separate implementation components and tests.
 
 ---
 
@@ -260,7 +260,7 @@ func add(int a, int b) {
 var result = add(2, 3);
 ```
 
-Function parameters require explicit types, following Assumptions A21 and A40.
+Function parameters require explicit types.
 
 The function declaration syntax does not require an explicit return type.
 
@@ -336,7 +336,7 @@ A checkpoint requires:
 
 The Parser creates a `CheckpointStmt` node.
 
-Checkpoint label uniqueness and variable validation are handled by the Runtime.
+Checkpoint label uniqueness and variable validity are checked during semantic analysis. At runtime, the CheckpointManager captures variable states and manages saved checkpoints.
 
 ### 9.4 Restore Statements
 
@@ -625,7 +625,7 @@ The Runtime and Code Generator determine their actual behaviour.
 
 ### 13.2 Explicit Type Conversions
 
-Following Assumption A40, explicit conversions use function-call syntax.
+Explicit conversions use function-call syntax.
 
 ```ebnf
 conversionCall = conversionName, callSuffix ;
@@ -882,7 +882,7 @@ A syntactically valid program may still fail semantic or runtime checks.
 
 ## 18. Checkpoint and Restore Requirements
 
-This section records the agreed Checkpoint / Restore behaviour from Assumptions A34–A43.
+This section records the agreed Checkpoint / Restore behaviour.
 
 These requirements are part of runtime semantics rather than the EBNF grammar.
 
@@ -932,8 +932,6 @@ The actual Environment or adapter is responsible for capturing deep copies, vali
 Using `std::any` alone does not guarantee a deep copy when stored values contain shared pointers or other shared resources.
 
 ### 18.4 Runtime Integration
-
-Following Assumptions A39 and A42:
 
 - Generated C++ variables must be accessible through the agreed Runtime representation.
 - Assignments and list writes must follow the agreed mutation interface.
@@ -1040,6 +1038,6 @@ The Semantic Analyzer, Code Generator, and Runtime are responsible for enforcing
 
 The grammar covers expressions, variable declarations, control flow, functions, lists, built-in functions, type conversions, and transparency statements.
 
-The Checkpoint / Restore requirements follow the agreed team assumptions and support the G5 and G6 testing objectives.
+The completed grammar reference was checked against the implemented Lexer, Parser, and Token definitions. Following integration of the latest available team changes, all **22 registered automated tests passed on macOS**, including the three checkpoint end-to-end regression tests. 
 
-The completed grammar reference was checked against the implemented Lexer, Parser, and Token definitions. Following integration of the latest available team changes, all **22 registered automated tests passed on macOS**, including the three checkpoint end-to-end regression tests. The documented G5–G7 implementation and testing deliverables are complete for this revision.
+The documented parser, checkpoint, and integration testing work is complete for this revision.
