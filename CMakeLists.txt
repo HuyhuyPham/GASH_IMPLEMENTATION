@@ -122,6 +122,17 @@ if(BUILD_TESTING)
     target_link_libraries(test_integration PRIVATE gash_core)
     add_test(NAME IntegrationTests COMMAND test_integration)
 
+    # Targeted source-to-source compilation and runtime regression checks.
+    # This suite uses POSIX process APIs; Windows retains the other CTest cases.
+    if(UNIX)
+        add_executable(test_advanced_pipeline tests/test_advanced_pipeline.cpp)
+        add_test(NAME AdvancedPipelineRegressionTests
+            COMMAND test_advanced_pipeline
+                "$<TARGET_FILE:gash>"
+                "${CMAKE_CURRENT_SOURCE_DIR}")
+        set_tests_properties(AdvancedPipelineRegressionTests PROPERTIES TIMEOUT 300)
+    endif()
+
     add_executable(test_e2e_pipeline tests/test_e2e_pipeline.cpp)
     target_link_libraries(test_e2e_pipeline PRIVATE gash_core)
     add_test(NAME E2EPipelineTests COMMAND test_e2e_pipeline)

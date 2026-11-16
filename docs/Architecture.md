@@ -1,71 +1,83 @@
 # GASH Compiler and Runtime Architecture
 
-**Course:** COMP2001 — Language Models, Translation and Execution
-
+**Course:** COMP2001 — Programming Languages
 **Implementation:** C++17 Source-to-Source Compiler
 
 ---
 
 ## 1. Architecture Overview
 
-GASH is a statically typed programming language implemented as a source-to-source compiler. It translates GASH programs into C++17 code, which is then compiled into an executable using a C++ compiler.
+Transparent GASH is a statically typed programming language implemented as a source-to-source compiler. It translates `.gash` programs into C++17, which is then compiled into a native executable using `g++`.
 
-The implementation separates lexical analysis, parsing, semantic analysis, code generation, and runtime support into coordinated components.
+The implementation separates lexical analysis, parsing, semantic analysis, code generation, and runtime support into distinct components.
 
 ### 1.1 Compilation Pipeline
 
 ```text
 GASH Source Code (.gash)
-         |
-         v
-       Lexer
-         |
-         v
-    Token Stream
-         |
-         v
-  Recursive-Descent Parser
-         |
-         v
- Abstract Syntax Tree (AST)
-         |
-         v
+          |
+          v
+        Lexer
+          |
+          v
+     Token Stream
+          |
+          v
+Recursive-Descent Parser
+          |
+          v
+Abstract Syntax Tree (AST)
+          |
+          v
    Semantic Analyzer
-         |
-         v
+          |
+          v
      Code Generator
-         |
-         v
-  Generated C++17 Source
-         |
-         v
-     C++ Compiler (g++)
-         |
-         v
-    Native Executable
-         |
-         v
- GASH Runtime Components
+          |
+          v
+ Generated C++17 Source
+          |
+          v
+   C++ Compiler (g++)
+          |
+          v
+   Native Executable
+          |
+          v
+ GASH Runtime Execution
+          |
+          v
+    Program Output
 ```
+
+Each stage has a distinct responsibility:
+
+1. **Lexical analysis:** Recognizes tokens, literals, keywords, identifiers, and operators.
+2. **Parsing:** Validates grammatical structure and constructs an Abstract Syntax Tree.
+3. **Semantic analysis:** Checks types, declarations, scopes, function calls, and other language constraints.
+4. **Code generation:** Translates validated AST nodes into C++17 statements and expressions.
+5. **Compilation:** Invokes the host C++ compiler to produce an executable.
+6. **Runtime execution:** Executes the generated program with GASH-specific state-management and safety mechanisms.
 
 ### 1.2 Main Components
 
-| Component         | Implementation                                        | Responsibility                                                                      |
-| ----------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Lexer             | `include/Lexer.h`, `src/Lexer.cpp`                    | Converts source code into tokens and identifies lexical errors                      |
-| Parser and AST    | `include/Parser.h`, `src/Parser.cpp`, `include/AST.h` | Validates grammatical structure and constructs the AST                              |
-| Semantic Analyzer | `include/Semantic.h`, `src/Semantic.cpp`              | Performs type checking, scope resolution, and semantic validation                   |
-| Code Generator    | `include/CodeGenerator.h`, `src/CodeGenerator.cpp`    | Translates validated AST constructs into C++17                                      |
-| Compiler Pipeline | `src/CompilerPipeline.cpp`                            | Coordinates compilation and execution of generated code                             |
-| Runtime           | `runtime/`                                            | Supports variable state, lists, guards, locks, checkpoints, budgets, and inspection |
+| Component | Implementation | Responsibility |
+|---|---|---|
+| Lexer | `include/Lexer.h`, `src/Lexer.cpp` | Tokenization and lexical diagnostics |
+| Parser and AST | `include/Parser.h`, `src/Parser.cpp`, `include/AST.h` | Syntax validation and AST construction |
+| Semantic Analyzer | `include/Semantic.h`, `src/Semantic.cpp` | Static type checking, scopes, and function validation |
+| Code Generator | `include/CodeGenerator.h`, `src/CodeGenerator.cpp` | C++17 source generation |
+| Compiler Pipeline | `include/CompilerPipeline.h`, `src/CompilerPipeline.cpp` | C++ compilation and process execution |
+| Runtime | `runtime/` | Values, lists, Environment, guards, locks, checkpoints, budgets, and inspection |
+| CLI | `src/main.cpp` | User-facing compiler commands |
 
-The command-line interface provides modes for displaying tokens, checking programs, generating C++ source code, and executing GASH programs.
+The compiler exposes commands for displaying tokens, checking programs, emitting C++ source, and compiling and executing GASH programs.
 
 ---
 
 ## 2. Type System and Scope Management
 
-### 2.1 Type System
+### 2.1 Static Type System
 
 GASH supports five primitive types:
 
@@ -75,273 +87,453 @@ GASH supports five primitive types:
 - `char`
 - `string`
 
+Lists are parameterized by a primitive element type, such as `list<int>` or `list<string>`. Nested lists are not supported.
+
 The compiler also represents `void` as the return type of functions without a value-returning statement.
 
-Lists are parameterized by a primitive element type, such as `list<int>` or `list<string>`. Nested lists are not supported.
+Variable declarations require an initializer, and their types are inferred from the initialization expression.
+
+Types remain fixed after declaration. Incompatible assignments are rejected during semantic analysis.
 
 ### 2.2 C++17 Type Mapping
 
-| GASH type | Generated C++17 type |
-| --------- | -------------------- |
-| `int`     | `int`                |
-| `float`   | `double`             |
-| `bool`    | `bool`               |
-| `char`    | `char`               |
-| `string`  | `std::string`        |
-| `list<T>` | `gash::List<T>`      |
+| GASH type | Generated C++ type |
+|---|---|
+| `int` | `int` |
+| `float` | `double` |
+| `bool` | `bool` |
+| `char` | `char` |
+| `string` | `std::string` |
+| `list<T>` | `gash::List<T>` |
 
-This mapping allows generated code to use native C++ types while relying on GASH runtime components for language-specific behaviour.
+Generated programs use native C++ types where practical and invoke the GASH runtime to implement language-specific behaviour.
 
-### 2.3 Lexical Scopes
+For example, ordinary variables use C++ storage, while the runtime Environment tracks their associated metadata, locks, guards, and checkpoint state.
 
-The semantic analyzer uses a scope stack to track variable declarations and resolve identifiers.
+### 2.3 Lexical Scope Management
 
-The runtime Environment maintains corresponding scope frames. Each frame has a unique `scopeId`, and each variable declaration receives a unique `bindingId`.
+The semantic analyzer uses a scope stack to track declarations and resolve identifiers.
 
-This distinguishes different variable declarations, including variables that have the same name in different scopes.
+Inner scopes may access visible declarations from outer scopes. Variables may shadow other variables declared in enclosing scopes, but duplicate declarations in the same scope are rejected.
 
-Variables in inner scopes can shadow variables from outer scopes. Duplicate declarations within the same scope are rejected.
+The runtime Environment maintains corresponding scope frames.
+
+Each scope receives a unique `scopeId`, and variable bindings receive unique `bindingId` values. These identifiers distinguish declarations with the same name in different scopes.
 
 ---
 
 ## 3. Semantic Analysis
 
-The semantic analyzer operates on the AST and validates programs before C++ generation.
+**Implementation:** `include/Semantic.h`, `src/Semantic.cpp`
 
-### 3.1 Static Type Checking
+The semantic analyzer examines the AST before code generation.
 
-GASH enforces strict type compatibility.
+### 3.1 Type Checking
 
-Arithmetic and comparison operations are checked against the supported operand types. Implicit numeric conversions between `int` and `float` are prohibited.
+GASH uses strict type compatibility.
 
-Explicit conversion functions include:
+For example:
 
 ```gash
 var x = 10;
 var y = float(x);
-var z = string(x);
+var text = string(x);
 ```
 
-Conversions are checked during semantic analysis and implemented through generated runtime conversion helpers.
+Explicit conversion functions permit supported conversions between types.
 
-### 3.2 Functions and Return Types
+Semantic analysis checks arithmetic operands, comparisons, assignments, function arguments, return statements, and other expressions.
 
-Function parameters require explicit types.
+### 3.2 Function Signatures and Return Types
 
-Function return types are inferred from value-returning statements. Multiple value-returning statements must use compatible types, and functions without a return statement are represented as returning `void`.
+Function parameters require explicit type annotations.
 
-The semantic analyzer also supports return-type inference for recursive functions.
+The parser supports primitive parameter types and typed-list parameters, such as:
+
+```gash
+func first(list<int> values) {
+    return values[0];
+}
+```
+
+Function return types are inferred from value-returning statements.
+
+The semantic analyzer checks that inferred return types are consistent and that function calls use compatible arguments.
+
+Recursive functions are supported.
+
+The compiler also maintains return-type information associated with individual `FunctionDeclStmt` AST nodes. This is especially important when nested functions have their own signatures.
 
 ### 3.3 Control Flow Validation
 
-The semantic analyzer enforces the following requirements:
+Semantic analysis enforces requirements including:
 
-- `if` and `while` conditions must have type `bool`.
-- `repeat` counts and `budget` limits must have type `int`.
-- `exit` and `skip` may only appear within loops.
-- `return` may only appear within functions.
-- Assignments must respect declared types and valid assignment targets.
+- `if` and `while` conditions must be Boolean.
+- `repeat` counts and `budget` limits must be integers.
+- `exit` and `skip` must occur in valid loop contexts.
+- `return` must occur within functions.
+- Assignment targets must be valid.
+- Assigned values must satisfy declared types.
+
+Certain constraints are enforced at runtime because their validity depends on values calculated during execution.
+
+For example, a negative `repeat` count is rejected at runtime.
 
 ### 3.4 Transparency Statement Validation
 
-The semantic analyzer also checks language-specific transparency constructs:
+Semantic analysis also checks GASH-specific statements:
 
-- `guard` conditions must have Boolean type.
-- `lock` and `unlock` must reference declared variables.
-- Checkpoints must contain valid variable references and comply with label and scope restrictions.
-- Restoration must reference a valid checkpoint and satisfy applicable semantic constraints.
+- Guard conditions must be Boolean.
+- Lock and unlock operations must reference declared variables.
+- Checkpoints must use valid variable references and labels.
+- Restoration must reference a valid checkpoint.
+- Scope and type restrictions must be respected.
 
-Runtime checks provide additional validation when programs execute.
+Additional runtime validation applies during mutations and restoration.
 
 ---
 
-## 4. Runtime Values and Lists
+## 4. Code Generation
 
-### 4.1 Runtime Value Representation
+**Implementation:** `include/CodeGenerator.h`, `src/CodeGenerator.cpp`
 
-**Implementation:** `runtime/Value.h`
+The code generator translates validated AST constructs into C++17.
 
-The runtime uses the `Value` class to represent dynamically stored GASH values.
+Generated code uses C++ declarations, expressions, functions, and control-flow statements, supplemented by runtime helper calls.
 
-Its underlying storage is a `std::variant` containing supported primitive types, `ListValue`, and an uninitialized state.
+### 4.1 Source Generation Strategy
 
-The class provides:
+The generated C++ source includes the standard and GASH runtime headers required for its operations.
+
+It establishes shared runtime components, including:
+
+```cpp
+static gash::Environment gash_env;
+static gash::CheckpointManager gash_checkpoints;
+```
+
+These objects coordinate runtime variable metadata, guards, locks, and checkpoint operations.
+
+Top-level function definitions and generated program statements are emitted into the appropriate C++ scopes.
+
+The generated `main()` function initializes runtime services and executes GASH top-level statements.
+
+### 4.2 Global Variable Hoisting
+
+GASH permits functions to access visible global variables.
+
+However, ordinary C++ functions cannot access variables declared locally inside `main()`.
+
+To preserve GASH semantics, the code generator identifies top-level variable declarations and emits their storage at C++ file scope before emitting top-level functions.
+
+Conceptually:
+
+```cpp
+static int gash_count{};
+```
+
+The corresponding GASH initialization expression is then evaluated at its original position during top-level execution.
+
+The generated program also registers the variable with the runtime Environment:
+
+```cpp
+gash_env.bindReference("count", gash_count);
+```
+
+This separation between **storage declaration** and **runtime initialization** allows functions to reference global variables while retaining top-level initialization order.
+
+The approach also supports typed global lists through their generated C++ storage types.
+
+### 4.3 Nested Function Generation
+
+GASH permits functions declared inside blocks or other functions.
+
+Ordinary C++17 functions cannot be defined directly inside another function body. The generator therefore represents nested functions using `std::function` and lambda expressions.
+
+Conceptually:
+
+```cpp
+std::function<int(int)> gash_helper;
+
+gash_helper = [&](int gash_x) -> int {
+    return gash_x + 1;
+};
+```
+
+This mechanism allows a nested function to capture accessible variables from its enclosing C++ scope.
+
+Declaring the `std::function` variable before assigning the lambda also enables supported recursive calls.
+
+Function return types are obtained from semantic analysis so that the generated callable has an explicit C++ signature.
+
+Nested functions continue to use GASH runtime scope management and parameter bindings.
+
+### 4.4 Expressions and Checked Arithmetic
+
+Ordinary expressions are translated into corresponding C++ expressions when their semantics are compatible.
+
+Operations requiring additional validation use runtime helpers.
+
+For example:
+
+| GASH operation | Generated implementation |
+|---|---|
+| Division | `gash::safeDivide(...)` |
+| Modulo | `gash::safeModulo(...)` |
+| Exponentiation | `gash::safePower(...)` |
+
+These helpers provide runtime checks for defined invalid conditions such as division by zero, modulo by zero, and non-finite exponentiation results.
+
+The code generator also checks that a `repeat` count is not negative before executing the loop.
+
+**Implementation boundary:** The current `safePower()` implementation checks whether its floating-point result is finite, but this alone does not guarantee that the result fits into an integer destination type. Integer overflow-range handling should be reviewed separately.
+
+### 4.5 Character and String Escaping
+
+GASH literals must be emitted as valid C++17 literals.
+
+The generator provides distinct escaping logic for strings and characters.
+
+In particular, character escaping handles characters such as the single quote and NUL character so that valid GASH source does not produce malformed C++ literals.
+
+### 4.6 Output Generation
+
+GASH output uses runtime formatting helpers rather than relying solely on C++ stream operators.
+
+Generated calls use:
+
+```cpp
+gash::writeOutput(std::cout, value);
+```
+
+The formatting layer ensures that:
+
+- Boolean values use `true` and `false`.
+- Primitive values are displayed using the supported GASH representation.
+- Typed lists can be displayed using their structured list formatting.
+
+This provides more consistent output behaviour across language types.
+
+### 4.7 Generated Function Return Safety
+
+Functions returning a value must not reach the end of their bodies without returning.
+
+For non-void generated functions, the code generator adds a runtime error at the end of the function body.
+
+Conceptually:
+
+```cpp
+throw std::runtime_error(
+    "Function reached end without returning a value"
+);
+```
+
+This prevents execution from silently falling through a non-void function, which would otherwise introduce undefined behaviour in C++.
+
+### 4.8 Generated Runtime Exception Handling
+
+The generated `main()` function uses exception handling around program execution.
+
+Runtime exceptions are reported using messages such as:
+
+```text
+Runtime error: Division by zero
+```
+
+The handler flushes standard output, writes the diagnostic to standard error, and returns a nonzero exit status.
+
+This makes failures more predictable and preserves output produced before a runtime error.
+
+Execution budgets also use a dedicated `BudgetExceeded` exception type, which may be handled by an enclosing budget scope.
+
+---
+
+## 5. Runtime Values and Typed Lists
+
+### 5.1 Runtime Value Representation
+
+**Implementation:** `runtime/Value.h`, `runtime/Value.cpp`
+
+The runtime `Value` abstraction represents dynamically stored GASH values.
+
+It uses `std::variant` to hold supported primitive values, `ListValue`, or an uninitialized state.
+
+The abstraction provides:
 
 - Runtime type identification
-- Typed access methods
+- Typed value access
 - Initialization checks
-- Explicit conversion methods
+- Conversion helpers
 - Value comparison
-- String representations for diagnostics and inspection
-- Binding identity metadata for checkpoint restoration
+- String representations
+- Metadata supporting checkpoint restoration
 
-### 4.2 List Representation
+The runtime separates some declarations and definitions between `Value.h` and `Value.cpp`.
 
-**Implementation:** `runtime/List.h`, `runtime/Value.h`
+### 5.2 Typed List Representation
 
-GASH lists support primitive element types and maintain information about their size, capacity, and initialized elements.
+**Implementation:** `runtime/List.h`, `runtime/List.cpp`
 
-List operations include element access, element assignment, and resizing.
+Typed lists are represented using `gash::List<T>`.
 
-The runtime validates element types and indexes, rejecting invalid access or incompatible assignments.
+Lists track logical size, capacity, and which positions contain initialized values.
 
-Both `List<T>` and `ListValue` use value-copy semantics. Copying a list produces independent element storage rather than sharing mutable list data.
+Internally, the implementation uses C++ container facilities including optional element storage, allowing it to distinguish an initialized position from an uninitialized one.
 
-The use of C++ containers and RAII supports automatic resource cleanup.
+Supported operations include:
+
+- Indexed reads and writes
+- Bounds checking
+- Element initialization tracking
+- List resizing
+- Structured inspection
+- Value copying
+
+Both typed lists and runtime list values follow value-copy semantics. Copying a list creates independent element storage instead of sharing mutable elements.
+
+### 5.3 Automatic Resource Management
+
+GASH relies on C++ RAII for resource cleanup.
+
+List storage is released when the corresponding C++ objects are destroyed.
+
+This includes ordinary scope exit and applicable exception unwinding.
+
+No explicit GASH `cleanup()` operation is required for list-owned storage.
 
 ---
 
-## 5. Runtime Environment
+## 6. Runtime Environment
 
 **Implementation:** `runtime/Environment.h`, `runtime/Environment.cpp`
 
-The `Environment` class manages runtime variable state, lexical scopes, mutation permissions, guards, and checkpoint integration.
+The `Environment` coordinates variable state, scope information, mutation permissions, guard validation, and checkpoint restoration.
 
-### 5.1 Variable Bindings
+### 6.1 Variable Bindings
 
-Each variable is represented by a `VariableBinding` containing:
+Each `VariableBinding` records relevant information such as:
 
-- Variable name and declared type
-- Current value and initialization state
+- Variable name and type
+- Current runtime value
+- Initialization state
 - Scope and binding identifiers
 - Lock state
 - Optional read-through and write-back callbacks
 
-These callbacks allow runtime metadata to remain connected to variables declared in generated C++.
+This information permits the runtime to identify which variable is being modified and which restrictions apply.
 
-### 5.2 Environment and Generated C++ Integration
+### 6.2 Connecting Generated C++ and Runtime State
 
-The `bindReference()` methods connect supported C++ primitive and list variables to corresponding Environment bindings.
+Generated programs store many variables in ordinary C++ objects.
 
-Read-through callbacks retrieve the current values of generated C++ variables, while write-back callbacks propagate restored or rolled-back values into those variables.
+The Environment provides `bindReference()` methods to associate these objects with runtime bindings.
 
-This integration is important because the generated program stores native C++ variables while the Environment manages additional GASH runtime state.
+Read-through callbacks retrieve values from generated C++ variables.
 
-### 5.3 Central Mutation Interface
+Write-back callbacks propagate restored or rolled-back runtime values into the generated variables.
 
-The Environment provides direct operations such as:
+This connection is necessary because GASH stores execution data in native C++ objects while tracking additional metadata separately.
 
-- `assign()` — Assigns a runtime value to a variable.
-- `assignListElement()` — Updates an indexed list element.
-- `extendList()` — Resizes a list.
+### 6.3 Controlled Mutation
 
-The code generator also uses template-based mutation wrappers:
+The Environment provides operations such as:
 
-- `mutateVar()` — Handles generated variable assignments.
-- `mutateList()` — Handles generated list mutations that return a value.
-- `mutateListVoid()` — Handles list mutations without a return value.
+- `assign()` — Assign a runtime value.
+- `assignListElement()` — Modify a list element.
+- `extendList()` — Change a list's size.
+- `mutateVar()` — Wrap generated variable assignments.
+- `mutateList()` — Wrap generated list mutations returning values.
+- `mutateListVoid()` — Wrap generated list mutations without return values.
 
-These wrappers check mutation permissions, capture previous values, perform the requested operation, and validate applicable guards.
+The mutation wrappers coordinate permission checks, previous-value snapshots, updates, and guard validation.
 
-If validation fails, the runtime attempts to restore the previous value before propagating the error.
+A mutation that violates a restriction is rejected.
 
-### 5.4 Scope Management and Cleanup
+Where supported, the Environment restores the previous value before propagating the error.
 
-The Environment uses `pushScope()` and `popScope()` to manage runtime scope frames.
+### 6.4 Runtime Scope Management
 
-`ScopeGuard` provides RAII-based scope management. It enters a scope when constructed and removes that scope when destroyed.
+The Environment maintains a stack of scope frames.
 
-When a scope ends, the Environment removes guards registered within that scope and discards its variable bindings.
+`pushScope()` enters a new runtime scope, and `popScope()` removes it.
 
-This supports cleanup during both normal execution and exception unwinding.
+`ScopeGuard` provides RAII-based scope management.
+
+When the generated C++ execution leaves a scope, its scope guard removes the corresponding runtime bindings and scoped guards.
+
+This mechanism also supports cleanup during exception unwinding.
 
 ---
 
-## 6. Lock and Unlock
+## 7. Locks and Guards
 
-Locking is implemented as part of each variable's runtime binding.
+### 7.1 Lock and Unlock
+
+Locking is associated with individual runtime variable bindings.
+
+For example:
 
 ```gash
 var x = 10;
-
 lock x;
 unlock x;
-
 x = 20;
 ```
 
-Calling `lock()` marks a variable as locked, while `unlock()` restores its write permission.
+A locked variable remains readable, but controlled mutation operations cannot modify it until it is unlocked.
 
-A locked variable remains readable but cannot be modified through the Environment's controlled mutation operations.
+Locks also apply to controlled list operations, including element updates and resizing.
 
-For lists, the lock also restricts element modification and resizing.
+Checkpoint restoration checks lock restrictions before applying saved values.
 
-Checkpoint restoration checks whether the target variables are locked before applying saved values.
+Repeated locking of an already-locked variable or unlocking of an already-unlocked variable is treated as a safe no-op.
 
-Repeated locking of an already-locked variable and repeated unlocking of an already-unlocked variable are safe no-ops.
-
-Attempts to lock or unlock an undeclared variable produce runtime errors.
-
----
-
-## 7. Mutation Guards
+### 7.2 Mutation Guards
 
 **Implementation:** `runtime/Guard.h`, `runtime/Guard.cpp`
 
-Guards allow programmers to define conditions that restrict changes to program state.
+Guards define conditions that must remain satisfied when program state changes.
 
 For example:
 
 ```gash
 var balance = 100;
-
 guard balance >= 0;
 ```
 
-### 7.1 Guard Representation
+`GuardManager` maintains registered guard rules.
 
-The runtime uses `GuardManager` to manage active guard rules.
+The runtime supports predicate-based, typed, AST-expression, and live guard evaluation mechanisms.
 
-A `GuardRule` stores the information needed to evaluate a condition, including its associated variables, scope metadata, description, and evaluation callback.
+A guard is checked when registered, and an initially invalid condition is rejected.
 
-Supported guard mechanisms include predicate callbacks, typed callbacks, AST expression guards, and live callbacks registered through the Environment.
+### 7.3 Mutation Validation and Rollback
 
-### 7.2 Guard Registration
+During a controlled mutation, the runtime verifies applicable restrictions.
 
-When a guard is registered, the runtime evaluates its condition against the current state.
+The Environment can register live guard callbacks using `addLiveGuard()`.
 
-A guard must evaluate to a Boolean result, and its initial condition must be satisfied.
+If a mutation causes an active guard condition to become false, the runtime attempts to restore the previous state and reports a guard violation.
 
-Invalid initial conditions are rejected instead of being registered.
-
-### 7.3 Mutation Validation
-
-The `GuardManager` provides two important operations:
-
-- `validateCandidate()` — Validates a proposed update against applicable registered guard rules.
-- `validateAll()` — Validates active guard rules against a complete candidate state.
-
-The generated C++ program registers live guard callbacks using `Environment::addLiveGuard()`.
-
-These callbacks are checked after a controlled mutation. If a guard is violated, the Environment restores the previous value through its rollback mechanism and reports an error.
-
-### 7.4 Guard Lifetime
-
-Guards are associated with lexical scope information.
-
-When a scope ends, the Environment removes the relevant guard registrations. This prevents guards declared within completed scopes from remaining active.
+Guards are associated with lexical scopes. When a scope ends, the relevant registrations are removed.
 
 ---
 
-## 8. Checkpoint and Restore
+## 8. Checkpoints and Restoration
 
 **Implementation:** `runtime/Checkpoint.h`, `runtime/Checkpoint.cpp`, `runtime/Environment.cpp`
 
-Checkpoint and restore operations allow GASH programs to save selected variable states and restore them later.
+Checkpoints preserve selected variable states for later restoration.
 
 ```gash
 var x = 10;
-
 checkpoint initial(x);
-
 x = 100;
-
 restore(initial);
-
 output(x);
 ```
 
-**Expected output:**
+Expected output:
 
 ```text
 10
@@ -349,62 +541,49 @@ output(x);
 
 ### 8.1 CheckpointManager
 
-`CheckpointManager` stores snapshots associated with unique labels.
+`CheckpointManager` stores snapshots under checkpoint labels.
 
-The `save()` method validates the checkpoint label and selected variable names before requesting snapshots from the Environment.
+Checkpoint creation validates label and variable information.
 
-It rejects:
+Invalid cases include:
 
-- Empty checkpoint labels
-- Duplicate checkpoint labels
-- Empty variable lists
+- Empty or duplicate checkpoint labels
+- Empty checkpoint variable lists
 - Duplicate variable names
-- Incomplete or inconsistent snapshot results
+- Missing or inconsistent snapshot information
 
-A checkpoint is stored only after successful capture and validation.
+A checkpoint is stored only after successful validation.
 
 ### 8.2 Variable Snapshots
 
-Each `VariableSnapshot` contains:
+Saved state includes:
 
 - Variable name
-- Saved value
+- Current value
 - Declared type
 - Scope identifier
 - Initialization state
+- Binding identity information
 
-The saved `Value` also carries binding identity metadata.
+Runtime value-copy semantics preserve independent snapshots, including list contents.
 
-Because runtime values use value-copy semantics, snapshots preserve independent copies of variable values, including list data.
-
-### 8.3 Runtime Integration
-
-`CheckpointEnvironment` defines the interface between the checkpoint manager and the execution environment.
-
-Its main operations are:
-
-- `captureVariables()` — Captures selected variable states.
-- `restoreVariablesAtomically()` — Validates and restores saved states.
-
-The concrete `Environment` implements this interface.
-
-This separation keeps checkpoint storage and restoration validation in distinct components.
-
-### 8.4 Restoration Process
+### 8.3 Restoration Process
 
 Checkpoint restoration follows a staged process:
 
 1. Synchronize current generated C++ values with runtime bindings.
 2. Copy the current scope frames into a candidate state.
-3. Validate target variable existence, type, scope identity, binding identity, and lock state.
+3. Validate variable existence, types, scope identities, binding identities, and locks.
 4. Apply saved values to the candidate state.
-5. Validate registered guards against the candidate state.
-6. Commit the candidate frames and propagate restored values to generated C++ variables.
-7. Check live guards and roll back if their validation fails.
+5. Validate registered guards.
+6. Commit the candidate state and write restored values back to generated C++ variables.
+7. Validate live guards and roll back when necessary.
 
-The staged approach prevents ordinary validation failures from partially applying a checkpoint.
+The Environment provides `restoreVariablesAtomically()` for coordinated restoration.
 
-The implementation includes rollback for live-guard failures. As with other exception-handling mechanisms, complete exception safety depends on the behaviour of the underlying write-back operations.
+This design prevents ordinary validation failures from partially applying a checkpoint.
+
+The implementation also supports rollback after live-guard failures, although complete exception safety still depends on the behaviour of the underlying write-back operations.
 
 ---
 
@@ -412,7 +591,7 @@ The implementation includes rollback for live-guard failures. As with other exce
 
 **Implementation:** `runtime/Budget.h`, `runtime/Budget.cpp`
 
-GASH supports execution budgets that restrict the number of counted operations performed within a block.
+Execution budgets limit the number of instrumented operations performed within a block.
 
 ```gash
 budget (10) {
@@ -420,70 +599,178 @@ budget (10) {
 }
 ```
 
-The generated C++ uses `BudgetScope` to manage budget lifetimes.
+The generated program uses `BudgetScope` to manage active budgets.
 
-The runtime tracks active budgets and decrements their remaining allowances when an instrumented operation is executed.
+The runtime tracks active budget scopes and decrements their remaining allowances when an instrumented operation executes.
 
-Nested budgets are supported, with each active budget accounting for operations executed within its scope.
+Nested budgets are supported. Each active budget accounts for operations executed within its scope.
 
-If a budget is exhausted, the runtime raises a `BudgetExceeded` exception.
+When an applicable budget is exhausted, the runtime raises a `BudgetExceeded` exception.
 
-Budget lifetime management uses RAII, allowing the active budget to be removed when its scope ends.
+Budget scope management uses RAII to maintain the active budget stack and remove completed scopes.
+
+Budget exhaustion has dedicated control-flow handling in generated code. It should therefore be distinguished from uncaught general runtime errors when interpreting test exit statuses.
 
 ---
 
-## 10. Inspect and Preview
+## 10. Inspection and Preview
 
 **Implementation:** `runtime/Inspect.h`, `runtime/Inspect.cpp`, `runtime/Preview.h`, `runtime/Preview.cpp`
 
-GASH provides two mechanisms for observing runtime state.
+GASH provides two complementary mechanisms for observing program state.
 
-### 10.1 Inspect
+### 10.1 List Inspection
 
-`inspect()` is designed for list inspection.
+`inspect()` displays information about a typed list without modifying it.
 
-It provides information about list structure, including its size, capacity, and initialized positions.
+Its output includes:
 
-Inspection is read-only and does not modify the inspected list.
+- Element type
+- Logical size
+- Capacity
+- Indexed positions
+- Initialized and uninitialized elements
 
-### 10.2 Preview
+For example:
 
-`preview()` displays information about active runtime variables.
+```gash
+var nums = list<int>(3);
+nums[0] = 7;
+nums[2] = 9;
+inspect(nums);
+```
 
-The Environment exports records containing:
+### 10.2 Variable Preview
 
-- Variable name
-- Declared type
-- Current value
-- Lock status
-- Scope information
+`preview()` displays information about active runtime variable bindings.
 
-The generated program registers the active Environment through `registerPreviewEnvironment()`.
+The Environment provides records containing variable names, types, values, lock status, and scope information.
 
-The preview component uses this registered provider to obtain current variable information.
+The generated program registers its active Environment through `registerPreviewEnvironment()`.
 
-This separation allows preview formatting to remain independent of the Environment's internal storage structure.
+The preview component then uses the registered provider to obtain state information without directly managing the Environment's internal storage.
+
+This separation allows preview formatting to remain independent of variable-state management.
 
 ---
 
-## 11. Compilation and Execution
+## 11. Compiler Pipeline and Command-Line Interface
 
-The command-line interface exposes several development and execution modes.
+**Implementation:** `include/CompilerPipeline.h`, `src/CompilerPipeline.cpp`, `src/main.cpp`
 
-```bash
-./build/gash --tokens examples/program.gash
-./build/gash --check examples/program.gash
-./build/gash --emit-cpp examples/program.gash
-./build/gash --run examples/program.gash
+The command-line interface supports several compiler modes.
+
+| Mode | Responsibility |
+|---|---|
+| `--tokens` | Perform lexical analysis and display tokens |
+| `--check` | Perform lexical, syntax, and semantic validation |
+| `--emit-cpp` | Produce generated C++17 source |
+| `--run` | Generate, compile, and execute a GASH program |
+| Default | Generate C++17 without execution |
+
+### 11.1 Native Compilation
+
+After source generation, the compiler pipeline invokes `g++` with the required include paths, runtime source files, and compilation options.
+
+The generated executable is then launched as a separate process.
+
+On POSIX platforms, the process execution layer uses operating-system process facilities. Windows-specific execution handling is also provided.
+
+The pipeline captures process status and reports compilation or execution failures.
+
+### 11.2 Repository and Runtime Path Resolution
+
+The compiler requires access to GASH runtime headers and implementation files when compiling generated programs.
+
+The pipeline contains repository-root discovery logic to locate these resources.
+
+This supports relevant invocation scenarios in which the compiler is launched from outside the repository root, reducing reliance on one fixed working directory.
+
+---
+
+## 12. Testing Architecture
+
+The test infrastructure includes component tests, end-to-end compilation tests, expected-error tests, and advanced compiler regression cases.
+
+### 12.1 CTest
+
+The project uses CMake and CTest to register automated tests.
+
+The existing CMake configuration includes 27 tests covering lexer, parser, AST, semantic analysis, runtime components, code generation, integration, and example-based end-to-end execution.
+
+The updated testing configuration adds `AdvancedPipelineRegressionTests` on supported POSIX platforms, bringing the total to **28 registered CTest tests**.
+
+The advanced regression executable contains 15 focused cases and counts as one registered CTest test.
+
+### 12.2 End-to-End Compilation Tests
+
+The end-to-end tests exercise the complete compilation path:
+
+```text
+GASH source
+    |
+    v
+Lexical + syntax + semantic validation
+    |
+    v
+C++ generation
+    |
+    v
+g++ compilation and linking
+    |
+    v
+Native executable
+    |
+    v
+Output and exit-status verification
 ```
 
-These modes allow users to inspect tokenization, validate syntax and semantics, generate C++ source, and execute compiled programs.
+The existing `E2EPipelineTests` verifies combinations of compiler features and runtime behaviour.
 
-Generated C++ includes the runtime support required by GASH-specific constructs.
+Seven additional named CTest cases verify example programs, including basic language constructs and checkpoint restoration.
 
-The runtime components enforce language-specific behaviour that cannot be represented solely by ordinary C++ declarations and operators.
+The helper `tests/run_gash_example.cmake` executes selected examples and compares their actual output against expected output.
 
-### Build and Test
+### 12.3 Unified Test Runner
+
+**Implementation:** `tests/test_all.cpp`
+
+The unified runner coordinates three stages:
+
+1. **Registered CTest tests:** Executes the configured CTest suite.
+2. **GASH CLI examples:** Runs 22 selected `.gash` programs, checking exact outputs, expected runtime errors, or successful execution.
+3. **Negative compilation tests:** Runs six invalid source programs and verifies that `--check` rejects them with diagnostics.
+
+The runner distinguishes intentionally failing programs from unexpected test failures.
+
+Seven basic examples are execution smoke tests, meaning their output is not asserted exactly.
+
+The unified runner invokes CTest itself and must not be registered as another CTest test, since that would cause recursive execution.
+
+### 12.4 Advanced Pipeline Regression Tests
+
+**Implementation:** `tests/test_advanced_pipeline.cpp`
+
+The advanced C++17 regression runner tests 15 targeted scenarios, including:
+
+- Global variables accessed within functions
+- Boolean and list output formatting
+- Division and modulo by zero
+- Invalid exponentiation
+- Negative repetition counts
+- Character literal escaping
+- Nested function declarations
+- Typed-list function parameters
+- Missing returns from non-void functions
+- Runtime exception handling
+- Syntax error locations
+- Execution from outside the repository root
+
+The runner creates temporary source files, compiles and executes them through GASH, and checks the resulting output, diagnostics, and exit status.
+
+Temporary files are removed after the test run.
+
+### 12.5 Build and Test Commands
 
 From the repository root:
 
@@ -493,23 +780,45 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-The latest reported macOS build passed all **22 registered CTest tests**, including three checkpoint end-to-end tests.
+To run the unified pipeline:
 
-The test suite covers lexer, parser, semantic, code-generation, runtime, and integration functionality.
+```bash
+c++ -std=c++17 tests/test_all.cpp -o build/test_all
+./build/test_all
+```
+
+To run only the advanced regression suite:
+
+```bash
+ctest --test-dir build -R '^AdvancedPipelineRegressionTests$' --output-on-failure
+```
+
+**Verification history:** The previous compiler revision passed 27/27 CTest tests, 22/22 CLI cases, six negative compilation cases, and 15 targeted regression cases on macOS.
+
+The newly integrated C++ regression runner compiles successfully, but its complete 15-case execution still requires confirmation on the final project revision. Once confirmed, the CTest suite will provide the corresponding 28-test result.
 
 ---
 
-## 12. Design Summary
+## 13. Design Summary
 
-GASH combines a conventional compiler pipeline with runtime mechanisms that expose and constrain program state.
+Transparent GASH combines a conventional source-to-source compiler with explicit runtime mechanisms for observing and controlling program state.
 
-Its architecture emphasizes four design principles:
+Its architecture emphasizes five design principles.
 
-1. **Separation of concerns:** Lexical, syntactic, semantic, code-generation, and runtime responsibilities are handled by dedicated components.
-2. **Static correctness checks:** Type and scope errors are detected before generated C++ code is executed.
-3. **Controlled mutation:** Runtime bindings coordinate locks, guards, and state modifications.
-4. **Runtime transparency:** Checkpoints, execution budgets, inspection, and preview provide explicit mechanisms for observing and controlling program behaviour.
+1. **Separation of concerns:** Lexing, parsing, semantic analysis, code generation, compilation, and runtime responsibilities are implemented in distinct components.
 
-The compiler retains familiar imperative syntax while integrating these transparency features into the language itself.
+2. **Static correctness checks:** Type, declaration, and scope errors are detected before generating executable code.
 
-For additional details, see [Grammar.md](Grammar.md), [LanguageReference.md](LanguageReference.md), and the repository [README](../README.md).
+3. **Controlled mutation:** Environment bindings coordinate locks, guards, and variable updates, including rollback where supported.
+
+4. **Runtime transparency:** Checkpoints, budgets, inspection, and preview provide mechanisms for observing and constraining program behaviour.
+
+5. **Execution safety:** Checked arithmetic, validated repetition counts, explicit missing-return failures, and runtime exception handling reduce unexpected behaviour in generated programs.
+
+The design preserves familiar imperative programming constructs while integrating transparency features directly into the language.
+
+For usage instructions and further details, see:
+
+- [README](../README.md)
+- [Grammar Reference](Grammar.md)
+- [Language Reference](LanguageReference.md)

@@ -1,667 +1,1070 @@
-# Transparent GASH — Language Reference
+# GASH Grammar Reference
 
-**COMP2001 — Language Models, Translation and Execution**
-
-**Implementation:** C++17 Source-to-Source Compiler  
-
-**Version:** 1.0
+**Course:** COMP2001 — Programming Languages
+**Implementation:** C++17 Recursive-Descent Parser
 
 ---
 
 ## 1. Introduction
 
-Transparent GASH (GASH) is a statically typed programming language designed around the principle *“Nothing happens behind your back.”* It emphasizes readability, predictable execution, and explicit control over program state.
+This document describes the syntax of Transparent GASH as recognized by its lexer and recursive-descent parser.
 
-GASH combines conventional imperative programming constructs—including variables, expressions, conditional statements, loops, and functions—with transparency-oriented features for inspecting memory, controlling mutations, restoring saved state, and limiting execution.
+The grammar covers:
 
-Its principal language features include:
+- Variable declarations and expressions
+- Blocks and conditional statements
+- Loops and loop-control statements
+- Function declarations, including nested functions
+- Typed-list creation and indexing
+- Built-in functions and explicit type conversions
+- Transparency statements: guards, locks, checkpoints, restoration, and execution budgets
 
-- **Inspectable lists:** `inspect()` displays list metadata and initialized elements.
-- **State visibility:** `preview()` exposes current variable information.
-- **Mutation guards:** `guard` restricts values assigned to variables.
-- **Explicit mutability control:** `lock` and `unlock` control modification permissions.
-- **State restoration:** `checkpoint` and `restore` save and recover selected variable states.
-- **Execution budgets:** `budget` limits operations within a designated block.
-- **Automatic resource management:** List-owned storage is managed through C++ object lifetimes.
+The parser checks grammatical structure and constructs an Abstract Syntax Tree (AST). The semantic analyzer performs type checking, declaration resolution, scope validation, and other static checks.
 
-GASH is implemented as a source-to-source compiler that translates `.gash` programs into C++17. Compilation consists of lexical analysis, parsing, semantic analysis, and code generation. The generated source is subsequently compiled into an executable using `g++`.
+The code generator and runtime implement execution behaviour, including guarded mutation, checkpoint restoration, arithmetic safety, and runtime diagnostics.
 
-This document describes the language's syntax, type system, execution semantics, built-in functions, and runtime behaviour.
+**Important distinction:** A syntactically valid program may still be rejected during semantic analysis or produce a runtime error.
 
-For further technical details, see:
+---
 
-- [Grammar Reference](Grammar.md) — Formal syntax, EBNF productions, and operator precedence.
-- [Compiler and Runtime Architecture](Architecture.md) — Compilation pipeline, component design, and implementation of runtime features.
+## 2. EBNF Notation
 
-## 2. Lexical Structure
+The grammar uses Extended Backus–Naur Form (EBNF).
 
-### 2.1 General Syntax
-
-GASH uses braces (`{}`) to delimit blocks and semicolons (`;`) to terminate statements. Whitespace and indentation improve readability but do not determine program structure.
-
-```gash
-var age = 20;
-
-if (age >= 18) {
-    output("Adult");
-} otherwise {
-    output("Minor");
-}
-```
-
-### 2.2 Identifiers
-
-Identifiers name variables, functions, and checkpoints. They must begin with an alphabetic character or underscore and may subsequently contain letters, digits, and underscores.
-
-Identifiers are case-sensitive and must not conflict with reserved keywords or prohibited built-in names.
-
-Examples of valid identifiers include `total`, `_counter`, and `item2`.
-
-### 2.3 Literals and Data Types
-
-GASH recognizes the following literal types:
-
-| Type | Example | Description |
-|---|---|---|
-| `int` | `42` | Integer value |
-| `float` | `3.14` | Floating-point value |
-| `bool` | `true`, `false` | Boolean value |
-| `char` | `'A'` | Character value |
-| `string` | `"Hello"` | String value |
-
-String literals use double quotation marks, while character literals use single quotation marks.
-
-Supported escape sequences include `\n`, `\t`, `\r`, `\0`, `\\`, `\"`, and `\'`.
-
-Malformed numeric literals, invalid escape sequences, and unterminated literals produce lexical errors.
-
-### 2.4 Comments
-
-GASH supports single-line and multiline comments.
-
-Single-line comments begin with `#` and continue to the end of the line.
-
-```gash
-# Initialize the counter.
-var count = 0; # Current count
-```
-
-Multiline comments are enclosed between `###` delimiters.
-
-```gash
-###
-This comment spans
-multiple lines.
-###
-
-var count = 10;
-```
-
-The multiline delimiters need not occupy separate lines. An unterminated multiline comment is reported as a lexical error.
-
-### 2.5 Reserved Keywords
-
-| Category | Keywords |
+| Symbol | Meaning |
 |---|---|
-| Declarations | `var`, `func`, `return` |
-| Conditionals | `if`, `otherwise` |
-| Iteration | `while`, `repeat`, `exit`, `skip` |
-| Mutation control | `guard`, `lock`, `unlock` |
-| State restoration | `checkpoint`, `restore` |
-| Execution control | `budget` |
-| Built-in operations | `input`, `output`, `inspect`, `preview`, `extend` |
-| Types | `int`, `float`, `bool`, `char`, `string`, `list` |
+| `"text"` | Literal keyword or symbol |
+| `A \| B` | Either A or B |
+| `[ A ]` | Optional element |
+| `{ A }` | Zero or more repetitions |
+| `A, B` | A followed by B |
+| `;` | End of an EBNF production |
 
-The words `true` and `false` are recognized as Boolean literals.
+Names such as `identifier`, `integerLiteral`, and `stringLiteral` represent tokens supplied by the lexer.
 
-## 3. Variables and Type System
+Whitespace and comments are processed during lexical analysis and do not appear as statements in the AST.
 
-### 3.1 Variable Declaration
+---
 
-Variables are declared using `var` and require an initializer.
+## 3. Program Structure
 
-```gash
-var age = 20;
-var price = 15.5;
-var name = "Alice";
-var active = true;
+A GASH program consists of zero or more statements.
+
+```ebnf
+program = { statement } ;
+
+statement = block
+          | varDeclaration
+          | returnStatement
+          | ifStatement
+          | whileStatement
+          | repeatStatement
+          | exitStatement
+          | skipStatement
+          | functionDeclaration
+          | guardStatement
+          | lockStatement
+          | unlockStatement
+          | checkpointStatement
+          | restoreStatement
+          | budgetStatement
+          | expressionStatement ;
+
+expressionStatement = expression, ";" ;
 ```
 
-GASH infers the variable's type from the initializer. The inferred type remains fixed throughout the variable's lifetime.
+An empty program is syntactically valid.
 
-### 3.2 Static Type Checking
+Statements can be nested inside blocks. Function declarations are also permitted inside blocks, allowing nested functions.
 
-Assignments must preserve type compatibility.
+Whether a statement is legal in a particular context is determined by semantic analysis. For example, `return` must occur within a function, and `exit` and `skip` must occur within a loop.
 
-```gash
-var count = 10;
-count = 20;
+---
+
+## 4. Variable Declarations
+
+Variables are introduced with the `var` keyword.
+
+```ebnf
+varDeclaration = "var", identifier, "=", expression, ";" ;
 ```
 
-Assigning an incompatible value is invalid:
-
-```gash
-var count = 10;
-count = "twenty";
-```
-
-The semantic analyzer rejects incompatible assignments before code generation.
-
-GASH also prevents the use of undeclared variables, duplicate declarations within the same scope, and invalid assignment targets.
-
-### 3.3 Explicit Type Conversion
-
-GASH provides explicit conversion functions for supported primitive values.
-
-| Function | Result type |
-|---|---|
-| `int(value)` | `int` |
-| `float(value)` | `float` |
-| `string(value)` | `string` |
-
-Example:
-
-```gash
-var age = int("20");
-var price = float("3.14");
-var text = string(100);
-```
-
-Each conversion accepts exactly one argument. Invalid conversion operations are rejected through semantic or runtime validation.
-
-### 3.4 Type Inference
-
-Type inference occurs during semantic analysis. Variables have fixed inferred types, and function return types are determined from their return expressions.
-
-GASH does not rely on unrestricted implicit conversions between unrelated types.
-
-## 4. Expressions and Operators
-
-### 4.1 Arithmetic Operators
-
-| Operator | Operation |
-|---|---|
-| `+` | Addition or string concatenation |
-| `-` | Subtraction |
-| `*` | Multiplication |
-| `/` | Division |
-| `%` | Integer modulo |
-| `^` | Exponentiation |
-
-Arithmetic operations use compatible operand types. String concatenation is supported through `+` when both operands are strings.
-
-```gash
-var result = 5 + 3 * 2;
-output(result);
-```
-
-Output:
-
-```text
-11
-```
-
-### 4.2 Comparison Operators
-
-| Operator | Description |
-|---|---|
-| `==` | Equal |
-| `!=` | Not equal |
-| `<` | Less than |
-| `>` | Greater than |
-| `<=` | Less than or equal |
-| `>=` | Greater than or equal |
-
-Comparison expressions produce Boolean values. Operands must satisfy the applicable type restrictions.
-
-### 4.3 Logical Operators
-
-| Operator | Description |
-|---|---|
-| `&&` | Logical AND |
-| `||` | Logical OR |
-| `!` | Logical NOT |
-
-Logical operators require Boolean operands.
-
-```gash
-var age = 20;
-var active = true;
-
-if (age >= 18 && active) {
-    output("Allowed");
-}
-```
-
-### 4.4 Operator Precedence
-
-Operators follow the precedence order defined by the language grammar.
-
-| Priority | Operators | Associativity |
-|---|---|---|
-| 1 (highest) | Parentheses | Explicit grouping |
-| 2 | `^` | Right |
-| 3 | Unary `-`, `!` | Unary |
-| 4 | `*`, `/`, `%` | Left |
-| 5 | `+`, `-` | Left |
-| 6 | `<`, `>`, `<=`, `>=` | Left |
-| 7 | `==`, `!=` | Left |
-| 8 | `&&` | Left |
-| 9 | `||` | Left |
-| 10 (lowest) | `=` | Right |
-
-Parentheses may be used to explicitly control evaluation order.
-
-### 4.5 Assignment Expressions
-
-Assignment updates a valid destination with a new value.
+### Examples
 
 ```gash
 var x = 10;
-x = 25;
+var name = "Alice";
+var result = x + 5;
+var enabled = true;
 ```
 
-Assignments are subject to static type checking and applicable runtime mutation restrictions.
+Every declaration requires a variable name, an initializer expression, and a terminating semicolon.
 
-## 5. Control Flow
+GASH infers the variable's static type from the initializer. Type compatibility and scope rules are enforced by semantic analysis.
 
-### 5.1 Conditional Statements
+A top-level variable may be accessed by functions where it is visible according to GASH scope rules. The code generator handles the corresponding C++ file-scope storage requirements.
 
-GASH uses `if` and `otherwise` to perform conditional execution.
+---
+
+## 5. Blocks and Lexical Scopes
+
+A block is a sequence of statements enclosed in braces.
+
+```ebnf
+block = "{", { statement }, "}" ;
+```
+
+### Example
 
 ```gash
-var score = 75;
+{
+    var x = 10;
 
-if (score >= 50) {
-    output("Pass");
+    {
+        var y = 20;
+        output(x + y);
+    }
+}
+```
+
+Blocks may be empty or nested.
+
+The parser represents them using `BlockStmt` nodes.
+
+The semantic analyzer manages lexical scopes, allowing inner scopes to access visible outer declarations and to shadow names where permitted.
+
+The runtime Environment maintains corresponding variable-binding and scope information.
+
+---
+
+## 6. Conditional Statements
+
+GASH supports `if` statements with an optional `otherwise` branch.
+
+```ebnf
+ifStatement = "if", "(", expression, ")", block,
+              [ "otherwise", block ] ;
+```
+
+### Example
+
+```gash
+var x = 10;
+
+if (x > 0) {
+    output("positive");
 } otherwise {
-    output("Fail");
+    output("non-positive");
 }
 ```
 
-Conditions must have Boolean type. Only the selected branch executes.
+The condition must be enclosed in parentheses.
 
-### 5.2 While Loops
+The `if` and `otherwise` branches must use braces. An `otherwise` branch is optional.
 
-A `while` loop repeatedly executes its body while the condition evaluates to true.
+The parser constructs an `IfStmt` node containing the condition and corresponding branches.
+
+Semantic analysis requires the condition to have type `bool`.
+
+---
+
+## 7. Loop Statements
+
+### 7.1 While Loops
+
+```ebnf
+whileStatement = "while", "(", expression, ")", block ;
+```
+
+### Example
 
 ```gash
-var i = 0;
+var x = 0;
 
-while (i < 3) {
-    output(i);
-    i = i + 1;
+while (x < 5) {
+    output(x);
+    x = x + 1;
 }
 ```
 
-Output:
+The parser produces a `WhileStmt` node.
 
-```text
-0
-1
-2
+The semantic analyzer requires the condition to have type `bool`.
+
+### 7.2 Repeat Loops
+
+```ebnf
+repeatStatement = "repeat", "(", expression, ")", block ;
 ```
 
-The condition is evaluated before each iteration.
-
-### 5.3 Repeat Loops
-
-`repeat(n)` executes a block using an integer repetition count.
+### Example
 
 ```gash
-repeat(3) {
+repeat (3) {
     output("Hello");
 }
 ```
 
-Output:
+The repetition count must evaluate to an integer.
 
-```text
-Hello
-Hello
-Hello
+The parser stores the count expression in the AST, while semantic analysis validates its type.
+
+The generated program checks the count at runtime. A negative count raises a runtime error rather than silently executing zero iterations.
+
+### 7.3 Loop Control
+
+```ebnf
+exitStatement = "exit", ";" ;
+
+skipStatement = "skip", ";" ;
 ```
 
-The repetition count is evaluated before the loop begins. A count of zero results in no iterations.
-
-### 5.4 Loop Control
-
-GASH uses the keywords `exit` and `skip`.
-
-- `exit` terminates the nearest enclosing loop.
-- `skip` proceeds to the next iteration, skipping any remaining statements in the current iteration.
+### Example
 
 ```gash
-var i = 0;
+var x = 0;
 
-while (i < 5) {
-    i = i + 1;
+while (x < 10) {
+    x = x + 1;
 
-    if (i == 2) {
+    if (x == 5) {
         skip;
     }
 
-    if (i == 4) {
+    if (x == 8) {
         exit;
     }
 
-    output(i);
+    output(x);
 }
 ```
 
-Output:
+`exit` terminates the nearest applicable loop.
 
-```text
-1
-3
+`skip` proceeds to the next iteration of the nearest applicable loop.
+
+The parser recognizes these statements, while the semantic analyzer verifies that they occur within valid loop contexts.
+
+---
+
+## 8. Function Declarations and Returns
+
+Functions are declared using `func`.
+
+```ebnf
+functionDeclaration = "func", identifier,
+                      "(", [ parameters ], ")", block ;
+
+parameters = parameter, { ",", parameter } ;
+
+parameter = typeName, identifier ;
+
+typeName = simpleType
+         | "list", "<", simpleType, ">" ;
+
+simpleType = "int"
+           | "float"
+           | "string"
+           | "bool"
+           | "char" ;
+
+returnStatement = "return", expression, ";" ;
 ```
 
-Using either keyword outside a loop produces a semantic error.
-
-## 6. Functions and Scope
-
-### 6.1 Function Declaration
-
-Functions are declared using `func`. Parameter types are explicitly specified.
+### 8.1 Basic Function Declaration
 
 ```gash
 func add(int a, int b) {
     return a + b;
 }
 
-output(add(2, 3));
+var result = add(2, 3);
+output(result);
 ```
 
-The semantic analyzer validates function declarations, parameter types, argument counts, and return expressions.
+Function parameters require explicit types. Function declarations do not specify a return type; it is inferred during semantic analysis.
 
-### 6.2 Return Types
+Functions without a value-returning statement may be inferred as returning `void`.
 
-Function return types are inferred through semantic analysis.
+### 8.2 Typed-List Parameters
 
-Value-returning statements must produce compatible types. Functions that do not return a value are treated as `void`.
-
-### 6.3 Recursion
-
-GASH supports recursive function definitions where return types can be inferred.
-
-The semantic analyzer examines return expressions to determine the function's type and validate recursive calls.
-
-### 6.4 Lexical Scope
-
-GASH uses lexical block scope. Variables declared inside a block remain accessible within that scope and its permitted nested scopes.
+Functions can accept typed lists as parameters.
 
 ```gash
-{
-    var local = 10;
-    output(local);
+func first(list<int> values) {
+    return values[0];
 }
 
-output(local);
-```
-
-The final statement is invalid because `local` is outside its declared scope.
-
-### 6.5 Variable Shadowing
-
-Nested scopes may declare variables with names already used by outer scopes.
-
-Each declaration represents a distinct variable in the language's scope model. References are resolved according to lexical visibility.
-
-### 6.6 Variable Lifetime
-
-Local variables cease to be accessible after their scope ends.
-
-The generated program uses C++ object lifetimes and runtime Environment scope management to maintain the corresponding variable state.
-
-## 7. Typed Lists
-
-### 7.1 List Declaration
-
-Lists store values of a specified element type.
-
-```gash
-var numbers = list<int>(3);
-```
-
-This creates a list with three addressable positions.
-
-New positions are initially uninitialized.
-
-### 7.2 Indexing
-
-GASH uses zero-based list indexing.
-
-```gash
-var numbers = list<int>(3);
-
-numbers[0] = 10;
-numbers[1] = 20;
-
-output(numbers[0]);
-```
-
-Output:
-
-```text
-10
-```
-
-List reads and writes are translated into runtime operations that validate indices and initialization state.
-
-### 7.3 Size and Capacity
-
-Lists distinguish between logical size and allocated capacity.
-
-| Property | Description |
-|---|---|
-| Size | Number of addressable positions |
-| Capacity | Amount of storage reserved by the underlying container |
-
-Capacity may exceed the logical size.
-
-### 7.4 Uninitialized Elements
-
-Creating a list does not automatically assign values to its elements.
-
-```gash
 var numbers = list<int>(2);
-output(numbers[0]);
+numbers[0] = 9;
+numbers[1] = 15;
+
+output(first(numbers));
 ```
 
-The attempted read produces a runtime error because the element has not been initialized.
+The `typeName` production permits both primitive parameter types and `list<T>` types.
 
-### 7.5 Bounds Checking
+List element types must be one of the supported primitive types. Nested list types are not part of the grammar.
 
-For a list with size `n`, valid indices range from `0` to `n - 1`.
+### 8.3 Nested Function Declarations
 
-Negative indices and indices beyond the valid range are rejected by the runtime.
-
-### 7.6 Resizing
-
-`extend()` changes a list's logical size.
+Because `functionDeclaration` is included in `statement`, functions may be declared inside blocks and other function bodies.
 
 ```gash
-var numbers = list<int>(2);
+func outer(int x) {
+    func inner(int y) {
+        return x + y;
+    }
 
-numbers[0] = 10;
-numbers[1] = 20;
+    return inner(3);
+}
 
-extend(numbers, 1);
-extend(numbers, 2);
+output(outer(5));
 ```
 
-Shrinking a list discards elements outside the new size. Growing it again creates uninitialized positions instead of recovering previously discarded values.
+The parser produces nested `FunctionDeclStmt` nodes.
 
-The list argument must have a list type, and the new size must have integer type.
+The semantic analyzer resolves function signatures, return types, and accessible variables.
 
-### 7.7 Copy Semantics
+The code generator implements nested functions using C++17 callable objects and lambda expressions. Recursive function calls are supported.
 
-Lists have independent value-copy semantics.
+### 8.4 Return Statement Rules
 
-Copying a list creates a separate collection containing copies of its stored values and initialization state.
+A return statement contains an expression and must occur in a valid function context.
 
-Modifying one independent copy does not modify the other.
+The semantic analyzer checks return types for consistency.
 
-### 7.8 Automatic Cleanup
+For a non-void function, reaching the end of its body without returning a value triggers a runtime error in generated code.
 
-List storage is managed through C++ Resource Acquisition Is Initialization (RAII).
+This is a runtime-safety rule rather than an additional EBNF restriction.
 
-Owned resources are released automatically when the owning object is destroyed, including during normal scope exit and applicable exception unwinding.
+---
 
-No explicit cleanup function is required in GASH source code.
+## 9. Transparency Statements
 
-## 8. Built-in Functions
+GASH provides syntax for runtime state observation and control.
 
-GASH provides built-in functions for input, output, conversions, and inspection.
+These constructs include guards, locks, checkpoints, restoration, and execution budgets.
 
-| Function | Parameters | Description |
-|---|---|---|
-| `input()` | None | Read input as a string |
-| `output(value)` | One value | Display a value |
-| `int(value)` | One primitive value | Convert to integer |
-| `float(value)` | One primitive value | Convert to floating-point |
-| `string(value)` | One primitive value | Convert to string |
-| `inspect(list)` | One list | Display list metadata |
-| `preview()` | None | Display current variable state |
-| `extend(list, size)` | List and integer | Resize a list |
+### 9.1 Guard Statements
 
-### 8.1 Input and Output
-
-`input()` reads user input and returns a string.
-
-```gash
-var name = input();
-output(name);
+```ebnf
+guardStatement = "guard", expression, ";" ;
 ```
 
-Numeric input can be converted explicitly.
-
-```gash
-var age = int(input());
-```
-
-`output()` writes a value to standard output followed by a newline.
-
-### 8.2 List Inspection
-
-`inspect()` provides a read-only view of list storage.
-
-```gash
-var values = list<int>(2);
-values[0] = 7;
-
-inspect(values);
-```
-
-The inspection output includes the list's element type, logical size, capacity, initialized positions, and stored values.
-
-Uninitialized positions are distinguished from initialized values.
-
-Inspection does not modify list contents.
-
-### 8.3 Variable Preview
-
-`preview()` displays information about currently registered runtime variables.
-
-```gash
-var x = 10;
-preview();
-```
-
-The runtime Environment supplies variable snapshots containing information such as names, types, values, lock status, and scope details.
-
-`preview()` reports current state rather than predicting future execution.
-
-## 9. Transparency and State Management
-
-### 9.1 Mutation Guards
-
-Guards restrict permitted variable values.
-
-```gash
-var balance = 100;
-guard balance >= 0 && balance <= 1000;
-```
-
-A guard condition must evaluate to a Boolean value.
-
-Mutations are validated against applicable guards before changes are committed.
+Example:
 
 ```gash
 var balance = 100;
 guard balance >= 0;
-
-balance = -50;
 ```
 
-A guard violation rejects the invalid modification and prevents execution from proceeding normally.
+A guard accepts an expression without requiring additional parentheses.
 
-The runtime Environment coordinates guarded mutations.
+Semantic analysis requires the expression to have type `bool`.
+
+At runtime, guards validate applicable state changes. Violations are rejected, with rollback where supported.
 
 ### 9.2 Lock and Unlock
 
-`lock` restricts modifications to a variable, while `unlock` restores modification permission.
+```ebnf
+lockStatement = "lock", identifier, ";" ;
 
-```gash
-var balance = 100;
-
-lock balance;
-unlock balance;
-
-balance = 200;
+unlockStatement = "unlock", identifier, ";" ;
 ```
 
-Locking and unlocking do not change a variable's static type or remove applicable guards.
+Example:
 
-Named-variable and list mutations are coordinated through runtime Environment operations.
+```gash
+var x = 10;
 
-### 9.3 Checkpoints
+lock x;
+unlock x;
 
-A checkpoint captures selected variable states using a named label.
+x = 20;
+```
+
+Locks prevent controlled mutations of locked variables.
+
+For typed lists, locking also restricts element modification and resizing.
+
+### 9.3 Checkpoint Statements
+
+```ebnf
+checkpointStatement = "checkpoint", identifier,
+                      "(", identifier,
+                      { ",", identifier }, ")", ";" ;
+```
+
+Example:
+
+```gash
+var x = 10;
+var y = 20;
+
+checkpoint initial(x, y);
+```
+
+A checkpoint requires a label and at least one variable identifier.
+
+The parser constructs a `CheckpointStmt` node.
+
+The semantic analyzer and runtime validate checkpoint labels, variable references, and scope restrictions.
+
+### 9.4 Restore Statements
+
+```ebnf
+restoreStatement = "restore",
+                   "(", identifier, ")", ";" ;
+```
+
+Example:
+
+```gash
+restore(initial);
+```
+
+A restore statement references one checkpoint label.
+
+Restoration is subject to runtime validation, including variable identity, scope, lock, and guard restrictions.
+
+### 9.5 Execution Budgets
+
+```ebnf
+budgetStatement = "budget",
+                  "(", expression, ")", block ;
+```
+
+Example:
+
+```gash
+budget (10) {
+    output("Hello");
+}
+```
+
+The budget expression must have type `int`.
+
+The code generator instruments supported operations, and the runtime tracks remaining allowances using `BudgetScope`.
+
+Nested budgets are supported.
+
+Budget exhaustion is handled by the runtime's budget-control mechanism.
+
+---
+
+## 10. Expression Grammar
+
+GASH uses recursive-descent parsing with separate precedence levels.
+
+The following productions are ordered from lowest to highest precedence.
+
+```ebnf
+expression = assignment ;
+
+assignment = logicalOr, [ "=", assignment ] ;
+
+logicalOr = logicalAnd,
+            { "||", logicalAnd } ;
+
+logicalAnd = equality,
+             { "&&", equality } ;
+
+equality = relational,
+           { ("==" | "!="), relational } ;
+
+relational = additive,
+             { ("<" | ">" | "<=" | ">="), additive } ;
+
+additive = multiplicative,
+           { ("+" | "-"), multiplicative } ;
+
+multiplicative = unary,
+                 { ("*" | "/" | "%"), unary } ;
+
+unary = ("-" | "!"), unary
+      | power ;
+
+power = postfix, [ "^", unary ] ;
+
+postfix = primary, { callSuffix | indexSuffix } ;
+
+callSuffix = "(", [ arguments ], ")" ;
+
+indexSuffix = "[", expression, "]" ;
+
+arguments = expression, { ",", expression } ;
+```
+
+### 10.1 Operator Precedence
+
+| Priority | Operators | Associativity |
+|---|---|---|
+| Lowest | `=` | Right |
+| 2 | `\|\|` | Left |
+| 3 | `&&` | Left |
+| 4 | `==`, `!=` | Left |
+| 5 | `<`, `>`, `<=`, `>=` | Left |
+| 6 | `+`, `-` | Left |
+| 7 | `*`, `/`, `%` | Left |
+| 8 | Unary `-`, `!` | Prefix |
+| 9 | `^` | Right |
+| Highest | Calls and indexing | Postfix |
+
+### Examples
+
+```gash
+var a = 2 + 3 * 4;
+var b = (2 + 3) * 4;
+var c = 2 ^ 3 ^ 2;
+```
+
+Multiplication has higher precedence than addition.
+
+Therefore:
+
+```text
+2 + 3 * 4
+```
+
+is interpreted as:
+
+```text
+2 + (3 * 4)
+```
+
+Exponentiation is right-associative:
+
+```text
+2 ^ 3 ^ 2
+```
+
+is interpreted as:
+
+```text
+2 ^ (3 ^ 2)
+```
+
+Exponentiation has higher precedence than unary negation.
+
+Runtime arithmetic helpers validate defined invalid operations, including division by zero, modulo by zero, and invalid exponentiation results.
+
+### 10.2 Assignment Restrictions
+
+The parser permits assignments only when the target is represented by an assignable AST node, such as `VariableExpr` or `IndexExpr`.
+
+Valid examples:
+
+```gash
+x = 10;
+numbers[0] = 5;
+```
+
+Invalid example:
+
+```gash
+(x + 1) = 10;
+```
+
+A binary expression is not a valid assignment target.
+
+### 10.3 Function Call Restrictions
+
+The EBNF describes general postfix syntax, but the parser applies additional AST restrictions.
+
+A function call requires a callee represented by `VariableExpr`.
+
+Valid example:
+
+```gash
+add(1, 2);
+```
+
+Invalid examples:
+
+```gash
+add()(1);
+numbers[0](1);
+```
+
+Calls on the result of another call or on an indexed expression are rejected by the parser.
+
+A parenthesized identifier may remain callable if it produces a `VariableExpr`.
+
+---
+
+## 11. Primary Expressions and Literals
+
+Primary expressions include literals, identifiers, built-in calls, conversions, list creation, and parenthesized expressions.
+
+```ebnf
+primary = literal
+        | identifier
+        | builtinCall
+        | conversionCall
+        | listCreation
+        | "(", expression, ")" ;
+
+literal = integerLiteral
+        | floatLiteral
+        | stringLiteral
+        | charLiteral
+        | booleanLiteral ;
+
+booleanLiteral = "true" | "false" ;
+```
+
+### Examples
+
+```gash
+var count = 10;
+var rate = 3.14;
+var title = "GASH";
+var letter = 'A';
+var active = true;
+var grouped = (count + 2) * 3;
+```
+
+The lexer determines the exact forms of numeric, string, character, and Boolean literals.
+
+The parser converts recognized literal tokens into corresponding expression nodes.
+
+---
+
+## 12. Typed Lists and Indexing
+
+GASH provides typed-list creation and indexed access.
+
+```ebnf
+listCreation = "list", "<", simpleType,
+               ">", "(", expression, ")" ;
+```
+
+List indexing uses the `indexSuffix` rule in Section 10.
+
+### Example
+
+```gash
+var numbers = list<int>(3);
+
+numbers[0] = 10;
+numbers[1] = 20;
+
+output(numbers[0]);
+```
+
+The parser stores the list element type and size expression in the AST.
+
+Semantic analysis and runtime components enforce list type and execution rules.
+
+These include:
+
+- Element type compatibility
+- Index bounds
+- Initialized versus uninitialized positions
+- List resizing
+- Value-copy behaviour
+
+Typed lists can also appear as function parameters using the `typeName` production.
+
+---
+
+## 13. Built-in Functions and Type Conversions
+
+### 13.1 Built-in Functions
+
+```ebnf
+builtinCall = builtinName, callSuffix ;
+
+builtinName = "input"
+            | "output"
+            | "inspect"
+            | "preview"
+            | "extend" ;
+```
+
+### Examples
+
+```gash
+input();
+output(x);
+inspect(numbers);
+preview();
+```
+
+Built-in function names must be followed by parentheses.
+
+The parser represents built-in calls using `CallExpr` nodes.
+
+The semantic analyzer and code generator determine argument validity and execution behaviour.
+
+`output()` supports primitive values and typed lists, including Boolean formatting as `true` and `false`.
+
+`inspect()` displays typed-list metadata, while `preview()` displays runtime variable-state information.
+
+### 13.2 Explicit Type Conversions
+
+```ebnf
+conversionCall = conversionName, callSuffix ;
+
+conversionName = "int"
+               | "float"
+               | "string" ;
+```
+
+### Examples
+
+```gash
+var age = int(input());
+var number = float("3.14");
+var message = string(100);
+```
+
+Conversion calls are represented as `CallExpr` nodes.
+
+The parser recognizes conversion names as callable tokens.
+
+Semantic analysis and runtime conversion helpers enforce argument types and conversion validity.
+
+---
+
+## 14. Lexer Tokens, Literals, and Comments
+
+The lexer converts GASH source text into tokens before parsing.
+
+Supported token categories include:
+
+- Keywords and identifiers
+- Numeric, string, character, and Boolean literals
+- Arithmetic, comparison, logical, and assignment operators
+- Parentheses, braces, and square brackets
+- Commas and semicolons
+- End-of-file tokens
+
+### 14.1 Identifiers
+
+Identifiers represent variable and function names.
+
+Examples:
+
+```text
+x
+total
+studentName
+calculateSum
+```
+
+Identifiers begin with a letter or underscore and may continue with letters, digits, or underscores.
+
+Reserved keywords cannot be used where the grammar requires an ordinary identifier.
+
+### 14.2 Numeric Literals
+
+Integer literals consist of decimal digits.
+
+Examples:
+
+```text
+0
+123
+1000
+```
+
+Floating-point literals contain decimal digits, a decimal point, and digits after the point.
+
+Examples:
+
+```text
+3.14
+0.5
+12.0
+```
+
+The lexer does not accept forms such as a trailing decimal point (`12.`) or scientific notation under the current numeric-token rules.
+
+### 14.3 Strings and Characters
+
+String literals use double quotes.
+
+Character literals use single quotes.
+
+Examples:
+
+```gash
+var text = "Hello";
+var letter = 'A';
+var quote = '\'';
+var nul = '\0';
+```
+
+Supported escape sequences include:
+
+| Escape | Meaning |
+|---|---|
+| `\n` | Newline |
+| `\t` | Tab |
+| `\r` | Carriage return |
+| `\0` | NUL character |
+| `\\` | Backslash |
+| `\"` | Double quote |
+| `\'` | Single quote |
+
+The code generator escapes characters and strings when producing C++17 literals.
+
+### 14.4 Comments
+
+Single-line comments start with `#`:
+
+```gash
+# This is a single-line comment
+var x = 10;
+```
+
+Multiline comments use `###` delimiters:
+
+```gash
+###
+This is a multiline comment.
+It may span multiple lines.
+###
+var x = 10;
+```
+
+An unterminated multiline comment produces a lexical error.
+
+Comments do not produce statement AST nodes.
+
+---
+
+## 15. Valid Syntax Examples
+
+The following examples are syntactically valid GASH programs. Successful execution additionally requires valid types, scopes, and runtime state.
+
+### 15.1 Variables and Expressions
+
+```gash
+var x = 10;
+var y = 20;
+var total = x + y * 2;
+
+output(total);
+```
+
+### 15.2 Function Declaration
+
+```gash
+func multiply(int a, int b) {
+    return a * b;
+}
+
+var result = multiply(3, 4);
+output(result);
+```
+
+### 15.3 Nested Function
+
+```gash
+func outer(int x) {
+    func helper(int y) {
+        return x + y;
+    }
+
+    return helper(5);
+}
+
+output(outer(10));
+```
+
+### 15.4 Typed-List Function Parameter
+
+```gash
+func first(list<int> values) {
+    return values[0];
+}
+
+var numbers = list<int>(2);
+numbers[0] = 7;
+numbers[1] = 8;
+
+output(first(numbers));
+```
+
+### 15.5 Nested Control Flow
+
+```gash
+var x = 1;
+
+if (x > 0) {
+    while (x < 4) {
+        repeat (2) {
+            output(x);
+        }
+
+        x = x + 1;
+    }
+}
+```
+
+### 15.6 Checkpoint and Restore
 
 ```gash
 var x = 10;
 var y = 20;
 
 checkpoint start(x, y);
-```
-
-A checkpoint must contain at least one valid variable.
-
-The semantic analyzer validates checkpoint declarations and records type and scope information associated with the selected variables.
-
-### 9.4 Restoration
-
-`restore()` restores the state previously captured by a checkpoint.
-
-```gash
-var x = 10;
-
-checkpoint start(x);
 
 x = 100;
+y = 200;
 
 restore(start);
 
 output(x);
+output(y);
 ```
 
-Output:
+### 15.7 Guards and Locks
 
-```text
-10
+```gash
+var balance = 100;
+
+guard balance >= 0;
+
+lock balance;
+unlock balance;
+
+balance = 75;
 ```
 
-Checkpoint restoration is coordinated by the runtime checkpoint manager.
+### 15.8 Typed Lists
 
-### 9.5 Restoration Validation
+```gash
+var numbers = list<int>(3);
 
-Restoration validates the state required to recover selected variables.
+numbers[0] = 10;
+numbers[1] = 20;
 
-Relevant validation includes variable identity, scope, type compatibility, and applicable mutation
+inspect(numbers);
+```
 
-## Related Documentation
+---
 
-- [README](../README.md) — Project overview, installation, build instructions, and testing.
-- [Grammar Reference](Grammar.md) — Complete grammar, syntax rules, and examples.
-- [Compiler and Runtime Architecture](Architecture.md) — Compiler pipeline, type system, Environment, guards, locks, checkpoints, and runtime implementation.
+## 16. Invalid Syntax and Semantic Examples
+
+Not every invalid GASH program fails at the same compiler stage.
+
+### 16.1 Invalid Syntax
+
+The parser rejects malformed programs such as:
+
+| Invalid example | Reason |
+|---|---|
+| `var x = ;` | Missing initializer expression |
+| `var x = 10` | Missing semicolon |
+| `var = 10;` | Missing variable name |
+| `func add(int a,) { return a; }` | Missing parameter after comma |
+| `checkpoint start();` | Missing checkpoint variable |
+| `checkpoint start(x,);` | Trailing comma |
+| `restore();` | Missing checkpoint label |
+| `var x = (1 + 2;` | Missing closing parenthesis |
+| `if (true) { var x = 1;` | Missing closing brace |
+| `add()(1);` | Invalid function-call callee |
+| `(x + 1) = 3;` | Invalid assignment target |
+
+The parser reports syntax errors with source-location information, including line and column where available.
+
+### 16.2 Invalid Semantic Programs
+
+A program may be syntactically correct but semantically invalid.
+
+For example:
+
+```gash
+output(undefinedVariable);
+```
+
+The parser can construct a valid AST for this statement, but semantic analysis rejects it because the variable has not been declared.
+
+Other semantic errors include incompatible assignments, duplicate declarations, invalid argument counts, and incorrect statement contexts.
+
+### 16.3 Runtime Errors
+
+Programs can pass both syntax and semantic checks but fail during execution.
+
+Examples include:
+
+- Division by zero
+- Modulo by zero
+- Invalid exponentiation
+- Negative repetition counts
+- Guard violations
+- Lock violations
+- Invalid checkpoint restoration
+- Invalid list indexing
+- Reaching the end of a non-void function without returning a value
+
+These are execution-time conditions rather than grammar errors.
+
+---
+
+## 17. Syntax, Semantics, and Automated Testing
+
+The GASH implementation separates responsibilities across the compiler pipeline.
+
+| Component | Responsibility |
+|---|---|
+| Lexer | Recognizes tokens and reports lexical errors |
+| Parser | Validates syntax and constructs AST nodes |
+| Semantic Analyzer | Checks types, declarations, scopes, function calls, and statement contexts |
+| Code Generator | Produces C++17 code from validated AST constructs |
+| Runtime | Enforces execution safety, lists, guards, locks, checkpoints, budgets, and state management |
+
+### 17.1 Registered CTest Suite
+
+Build and execute the registered tests:
+
+```bash
+cmake -S . -B build
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+The updated testing configuration contains **28 registered CTest tests on supported POSIX platforms**, including `AdvancedPipelineRegressionTests`.
+
+The previously verified compiler revision passed 27/27 CTest cases. The additional C++ regression suite contains 15 cases and must be executed against the final revision to confirm the updated 28-test configuration.
+
+### 17.2 Unified Testing Pipeline
+
+The unified C++ test runner executes:
+
+1. The registered CTest suite.
+2. Twenty-two selected GASH CLI examples.
+3. Six negative compilation tests.
+
+Build and run it using:
+
+```bash
+c++ -std=c++17 tests/test_all.cpp -o build/test_all
+./build/test_all
+```
+
+The runner verifies compilation, execution, selected expected outputs, runtime errors, and invalid-source rejection.
+
+### 17.3 Advanced Regression Tests
+
+The advanced C++ regression suite can be run separately:
+
+```bash
+ctest --test-dir build -R '^AdvancedPipelineRegressionTests$' --output-on-failure
+```
+
+It checks the interaction between language syntax, semantic validation, C++ generation, native compilation, and runtime behaviour for 15 targeted edge cases.
+
+### 17.4 Related Documentation
+
+For more information:
+
+- [Language Reference](LanguageReference.md) — Types, language features, and execution semantics.
+- [Compiler and Runtime Architecture](Architecture.md) — Compiler components, code generation, and runtime design.
+- [README](../README.md) — Build instructions, CLI usage, examples, and the complete testing workflow.
+
+The grammar describes what the parser recognizes. The Language Reference describes what valid GASH programs mean, while the Architecture document explains how those behaviours are implemented.
