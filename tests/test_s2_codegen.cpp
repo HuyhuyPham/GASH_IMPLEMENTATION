@@ -1,3 +1,4 @@
+// Codegen test verifying repeat loops, if statements, skip, and exit generation.
 #if __has_include("../include/CodeGenerator.h")
 #include "../include/CodeGenerator.h"
 #else
@@ -33,6 +34,7 @@ std::unique_ptr<Stmt> makeIfEquals(
     );
 }
 
+// Constructs a repeat/if/skip/exit AST and emits the generated C++ code.
 int main() {
     Program program;
 

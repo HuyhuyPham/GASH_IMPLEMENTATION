@@ -1,3 +1,4 @@
+// Unit tests for SemanticAnalyzer type checking, scope shadowing, recursion, and transparency rules.
 #if __has_include("../include/Lexer.h")
 #include "../include/Lexer.h"
 #include "../include/Parser.h"
@@ -20,6 +21,7 @@ using namespace gash;
 
 namespace {
 
+// Tokenizes and parses GASH source code into a Program AST.
 Program parseSource(const std::string& source) {
     Lexer lexer(source);
     auto tokens = lexer.tokenize();
@@ -27,12 +29,14 @@ Program parseSource(const std::string& source) {
     return parser.parseProgram();
 }
 
+// Parses and analyzes `source`, expecting semantic validation to succeed.
 void analyzeValid(const std::string& source) {
     Program prog = parseSource(source);
     SemanticAnalyzer analyzer;
     analyzer.analyze(prog);
 }
 
+// Returns true if analyzing `source` throws a SemanticError.
 bool failsSemantic(const std::string& source) {
     Program prog = parseSource(source);
     SemanticAnalyzer analyzer;
@@ -44,6 +48,7 @@ bool failsSemantic(const std::string& source) {
     return false;
 }
 
+// Runs one semantic test case and updates `passedCount`.
 void runTest(
     int id,
     const std::string& title,
@@ -63,6 +68,7 @@ void runTest(
 
 } // namespace
 
+// Runs all 9 SemanticAnalyzer and Type system test suites.
 int main() {
     int passed = 0;
     const int total = 9;

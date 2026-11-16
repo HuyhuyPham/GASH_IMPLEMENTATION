@@ -1,4 +1,6 @@
 
+// Unit tests verifying Parser expression parsing from hand-built token streams.
+
 #if __has_include("../include/Parser.h")
 #include "../include/Parser.h"
 #else
@@ -20,6 +22,7 @@ std::unique_ptr<Expr> parse(std::vector<Token> tokens) {
     return parser.parseExpressionOnly();
 }
 
+// Executes Parser expression tests across operators and error cases.
 int main() {
 
     // Test 1: Arithmetic precedence.

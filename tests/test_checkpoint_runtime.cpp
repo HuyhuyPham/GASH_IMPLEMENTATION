@@ -1,4 +1,5 @@
 
+// Runtime integration tests verifying CheckpointManager together with live Environment.
 #include <cassert>
 #include <iostream>
 #include <stdexcept>
@@ -29,6 +30,7 @@ void expectRuntimeError(F&& operation) {
     assert(failed);
 }
 
+// Runs real Environment + CheckpointManager restoration and rejection scenarios.
 int main() {
 
     // Test 1: Save and restore real integer variables.

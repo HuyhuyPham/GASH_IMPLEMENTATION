@@ -1,3 +1,4 @@
+// Unit tests verifying AST node construction and ownership across expressions and statements.
 #if __has_include("../include/AST.h")
 #include "../include/AST.h"
 #else
@@ -9,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+// Constructs sample AST nodes and asserts structural and value correctness.
 int main() {
     // Create a program
     gash::Program program;

@@ -82,6 +82,16 @@ cmake --build build
 
 To force a fresh CMake configuration, remove the generated `build/` directory and configure the project again.
 
+### Alternative: Direct Build with `g++` (Without CMake)
+
+If `cmake` is not installed (for example, in a minimal MinGW/MSYS2 or POSIX environment), compile the `gash` CLI directly from the repository root:
+
+```bash
+g++ -std=c++17 -Iinclude -Iruntime src/main.cpp src/Lexer.cpp src/Parser.cpp src/Semantic.cpp src/CodeGenerator.cpp src/CompilerPipeline.cpp runtime/Budget.cpp runtime/Checkpoint.cpp runtime/Guard.cpp runtime/Environment.cpp runtime/Inspect.cpp runtime/List.cpp runtime/Preview.cpp runtime/Value.cpp -o gash
+```
+
+On Windows, use `-o gash.exe` and invoke `.\gash.exe --run examples/hello.gash`.
+
 ## 4. Using the GASH Compiler
 
 The command-line interface supports token inspection, lexical/syntax/semantic validation, C++ generation, and direct compilation and execution.
@@ -354,7 +364,7 @@ ctest --test-dir build -N
 
 ### 6.2 Test suites
 
-The current `CMakeLists.txt` registers 22 tests.
+The current `CMakeLists.txt` registers 27 automated tests:
 
 | Area | CTest test names |
 |---|---|
@@ -367,14 +377,22 @@ The current `CMakeLists.txt` registers 22 tests.
 | Inspection and preview | `InspectPreviewTests` |
 | Automatic cleanup | `AutoCleanupTests` |
 | Code generation | `CodegenTests`, `S2CodegenTests`, `S3CodegenTests` |
-| Integration | `IntegrationTests` |
-| End-to-end checkpoint examples | `CheckpointSmokeE2E`, `CheckpointMultiE2E`, `CheckpointListE2E` |
+| Integration & E2E pipeline | `IntegrationTests`, `E2EPipelineTests` |
+| End-to-end `.gash` examples | `HelloE2E`, `ConditionsE2E`, `FunctionsE2E`, `LoopsE2E`, `CheckpointSmokeE2E`, `CheckpointMultiE2E`, `CheckpointListE2E` |
 
-**Test results**: All 22 registered tests passed (100%), including the three end-to-end checkpoint tests.
+The test suite covers lexical analysis, parsing, semantic analysis, runtime features, code generation, error diagnostics across all stages, and end-to-end compilation and execution.
 
-The test suite covers lexical analysis, parsing, semantic analysis, runtime features, code generation, and integration.
+### 6.3 Run custom `.gash` test cases
 
-### 6.3 Run specific tests
+You can test any custom `.gash` file directly using the CLI:
+
+```bash
+./build/gash --tokens path/to/custom.gash
+./build/gash --check path/to/custom.gash
+./build/gash --run path/to/custom.gash
+```
+
+### 6.4 Run specific tests
 
 Run the lexer tests:
 
@@ -388,25 +406,29 @@ Run list-related tests:
 ctest --test-dir build -R 'ListTests|InspectPreviewTests|AutoCleanupTests' --output-on-failure
 ```
 
-Run checkpoint tests:
+Run checkpoint and E2E pipeline tests:
 
 ```bash
-ctest --test-dir build -R 'Checkpoint' --output-on-failure
+ctest --test-dir build -R 'Checkpoint|E2EPipeline' --output-on-failure
 ```
 
-### 6.4 End-to-end tests
+### 6.5 End-to-end tests
 
-Three CTest cases execute checkpoint-based GASH examples through the compiler:
+Seven CTest cases execute `.gash` examples through the full compiler pipeline:
 
 | Test | Source file | Expected output lines |
 |---|---|---|
+| `HelloE2E` | `examples/hello.gash` | `Hello, GASH!` |
+| `ConditionsE2E` | `examples/conditions.gash` | `High Distinction`, `Verified` |
+| `FunctionsE2E` | `examples/functions.gash` | `30`, `120` |
+| `LoopsE2E` | `examples/loops.gash` | `1`, `3`, `4`, `repeat step`, `repeat step`, `repeat step` |
 | `CheckpointSmokeE2E` | `examples/checkpoint_smoke.gash` | `10` |
 | `CheckpointMultiE2E` | `examples/checkpoint_multi.gash` | `10`, `20`, `10`, `20` |
 | `CheckpointListE2E` | `examples/checkpoint_list.gash` | `7`, `8` |
 
-These tests are registered using `tests/run_gash_example.cmake`.
+Additional examples in `examples/` include `variables.gash`, `lists.gash`, `transparency.gash`, and negative runtime-error demonstrations (`checkpoint_guard.gash` and `checkpoint_lock.gash`, which verify that guard violations and locked-variable restores abort cleanly with a runtime error).
 
-They are intended to verify compilation and execution, rather than only individual compiler components.
+These E2E tests are registered using `tests/run_gash_example.cmake` and `tests/test_e2e_pipeline.cpp`.
 
 ## 7. Project Structure
 
@@ -429,6 +451,9 @@ GASH_IMPLEMENTATION/
 │   └── CompilerPipeline.cpp
 ├── runtime/
 │   ├── List.h
+│   ├── List.cpp
+│   ├── Value.h
+│   ├── Value.cpp
 │   ├── Budget.cpp
 │   ├── Checkpoint.cpp
 │   ├── Guard.cpp
@@ -446,11 +471,22 @@ GASH_IMPLEMENTATION/
 │   ├── run_gash_example.cmake
 │   └── ... additional test files
 ├── examples/
+│   ├── hello.gash
+│   ├── variables.gash
+│   ├── conditions.gash
+│   ├── loops.gash
+│   ├── functions.gash
+│   ├── lists.gash
+│   ├── transparency.gash
 │   ├── checkpoint_smoke.gash
 │   ├── checkpoint_multi.gash
-│   └── checkpoint_list.gash
+│   ├── checkpoint_list.gash
+│   ├── checkpoint_guard.gash
+│   └── checkpoint_lock.gash
 ├── docs/
-│   └── Grammar.md
+│   ├── Architecture.md
+│   ├── Grammar.md
+│   └── LanguageReference.md
 └── build/
     └── Generated build outputs
 ```

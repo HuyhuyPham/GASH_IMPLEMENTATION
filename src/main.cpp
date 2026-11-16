@@ -1,3 +1,4 @@
+// Entry point for the Transparent GASH CLI (--tokens, --check, --emit-cpp, --run).
 #if __has_include("../include/CodeGenerator.h")
 #include "../include/CodeGenerator.h"
 #include "../include/CompilerPipeline.h"
@@ -28,6 +29,7 @@ namespace fs = std::filesystem;
 
 namespace {
 
+// Prints CLI usage flags and command syntax.
 void printUsage() {
     std::cout
         << "Transparent GASH Compiler\n\n"
@@ -40,6 +42,7 @@ void printUsage() {
         << "  gash <file.gash>\n";
 }
 
+// Reads a GASH source file from disk and strips any UTF-8 BOM prefix.
 std::string readSourceFile(const fs::path& path) {
     std::ifstream file(path, std::ios::binary);
 
@@ -70,6 +73,7 @@ std::string readSourceFile(const fs::path& path) {
     return source;
 }
 
+// Writes generated output content to disk, creating parent directories if needed.
 void writeFile(
     const fs::path& outputPath,
     const std::string& content
@@ -96,6 +100,7 @@ void writeFile(
     }
 }
 
+// Runs the Lexer stage over raw GASH source code.
 std::vector<gash::Token> tokenize(
     const std::string& source
 ) {
@@ -103,6 +108,7 @@ std::vector<gash::Token> tokenize(
     return lexer.tokenize();
 }
 
+// Runs the Parser stage over a token stream to build a Program AST.
 gash::Program parse(
     std::vector<gash::Token> tokens
 ) {
@@ -110,6 +116,7 @@ gash::Program parse(
     return parser.parseProgram();
 }
 
+// Prints recognized tokens and their source coordinates for `--tokens`.
 void printTokens(const std::vector<gash::Token>& tokens) {
     for (const auto& token : tokens) {
         std::cout
@@ -121,12 +128,14 @@ void printTokens(const std::vector<gash::Token>& tokens) {
     }
 }
 
+// Computes the default `.cpp` output path alongside the input source file.
 fs::path defaultOutputPath(const fs::path& inputPath) {
     fs::path output = inputPath;
     output.replace_extension(".cpp");
     return output;
 }
 
+// Computes the platform-specific executable path alongside the input source file.
 fs::path defaultExecutablePath(const fs::path& inputPath) {
     fs::path output = inputPath;
 #ifdef _WIN32
@@ -139,6 +148,7 @@ fs::path defaultExecutablePath(const fs::path& inputPath) {
 
 } // namespace
 
+// Parses CLI arguments and executes the requested GASH compiler mode.
 int main(int argc, char* argv[]) {
     if (argc == 2 && std::string(argv[1]) == "--help") {
         printUsage();

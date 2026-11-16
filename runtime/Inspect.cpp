@@ -1,4 +1,6 @@
 
+// Implements inspect() formatting and explicit instantiations for GASH primitive list types.
+
 #include "Inspect.h"
 
 #include <cstdint>
@@ -9,6 +11,7 @@ namespace gash {
 
 namespace detail {
 
+// Maps a C++ element type T to its corresponding GASH type name string.
 template <typename T>
 constexpr const char* listElementTypeName() {
     if constexpr (std::is_same_v<T, int>)
@@ -25,6 +28,7 @@ constexpr const char* listElementTypeName() {
         return "unknown";
 }
 
+// Formats one initialized list element according to GASH display rules.
 template <typename T>
 void printListValue(std::ostream& out, const T& value) {
     if constexpr (std::is_same_v<T, std::string>) {
@@ -43,6 +47,7 @@ void printListValue(std::ostream& out, const T& value) {
 
 } // namespace detail
 
+// Prints a read-only summary of list type, size, capacity, and each element slot.
 template <typename T>
 void inspect(const List<T>& list, std::ostream& out) {
     out << "List<"

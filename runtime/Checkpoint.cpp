@@ -1,3 +1,4 @@
+// Implements CheckpointManager snapshot validation, storage, and atomic restore delegation.
 #include "Checkpoint.h"
 
 #include <stdexcept>
@@ -15,11 +16,14 @@ struct CheckpointManager::Impl {
     std::unordered_map<std::string, Snapshot> snapshots;
 };
 
+// Initializes internal checkpoint snapshot storage.
 CheckpointManager::CheckpointManager()
     : impl_(std::make_unique<Impl>()) {}
 
+// Destroys CheckpointManager and its stored snapshots.
 CheckpointManager::~CheckpointManager() = default;
 
+// Validates label/variable uniqueness and stores deep snapshots captured from environment.
 void CheckpointManager::save(
     const std::string& label,
     const std::vector<std::string>& variableNames,
@@ -61,6 +65,7 @@ void CheckpointManager::save(
     impl_->snapshots.emplace(label, Impl::Snapshot{std::move(captured)});
 }
 
+// Delegates atomic restoration of a previously saved checkpoint label to environment.
 void CheckpointManager::restore(
     const std::string& label,
     CheckpointEnvironment& environment

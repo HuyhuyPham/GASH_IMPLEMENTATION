@@ -1,3 +1,4 @@
+// Implements runtime Environment scope management, variable bindings, guards, locks, and atomic restore.
 #include "Environment.h"
 #include "Preview.h"
 
@@ -9,6 +10,7 @@ namespace gash {
 
 namespace {
 
+// Formats a scope ID into a readable label ("global" or "scope#<id>").
 std::string formatScopeLabel(std::size_t scopeId) {
     if (scopeId == 1) {
         return "global";
@@ -52,6 +54,7 @@ char extractElement<char>(const Value& v) { return v.asChar(); }
 template <>
 std::string extractElement<std::string>(const Value& v) { return v.asString(); }
 
+// Converts a live C++ List<T> into an owning deep-copy ListValue wrapped in Value.
 template <typename T>
 Value convertListToValue(const List<T>& cppList) {
     const Type elemType = listElementTypeFor<T>();
@@ -68,6 +71,7 @@ Value convertListToValue(const List<T>& cppList) {
     return Value(std::move(lv));
 }
 
+// Writes a saved ListValue back into a bound live C++ List<T> preserving capacity and occupancy.
 template <typename T>
 void applyValueToList(const Value& v, List<T>& cppList) {
     const ListValue& lv = v.asList();
@@ -86,17 +90,20 @@ void applyValueToList(const Value& v, List<T>& cppList) {
 
 } // anonymous namespace
 
+// Constructs the Environment with the initial global scope frame.
 Environment::Environment() {
     // Initialize with global scope frame (scopeId = 1).
     pushScope();
 }
 
+// Opens a new nested scope frame and returns its unique ID.
 std::size_t Environment::pushScope() {
     const std::size_t id = nextScopeId_++;
     frames_.push_back(ScopeFrame{id, {}, {}});
     return id;
 }
 
+// Exits the current inner scope and removes guards registered within that scope.
 void Environment::popScope() {
     if (frames_.size() <= 1) {
         throw std::runtime_error("Cannot pop global environment scope");
@@ -114,6 +121,7 @@ void Environment::popScope() {
     frames_.pop_back();
 }
 
+// Defines a variable in current scope using the type inferred from `initialValue`.
 void Environment::define(const std::string& name, const Value& initialValue) {
     if (!initialValue.isInitialized()) {
         throw std::runtime_error(
@@ -551,6 +559,7 @@ void Environment::validateLiveGuards() const {
     }
 }
 
+// Assigns a validated value to `name`, enforcing locks and active guards atomically.
 void Environment::assign(const std::string& name, const Value& newValue) {
     VariableBinding* binding = findBindingMutable(name);
     if (!binding) {
@@ -615,6 +624,7 @@ Value Environment::getListElement(
     return listVal.asList().get(index);
 }
 
+// Updates one list element through Environment after lock and guard validation.
 void Environment::assignListElement(
     const std::string& name,
     std::int64_t index,
@@ -665,6 +675,7 @@ void Environment::assignListElement(
     }
 }
 
+// Resizes a bound list through Environment after lock and guard validation.
 void Environment::extendList(const std::string& name, std::int64_t newSize) {
     VariableBinding* binding = findBindingMutable(name);
     if (!binding) {
@@ -708,6 +719,7 @@ void Environment::extendList(const std::string& name, std::int64_t newSize) {
     }
 }
 
+// Enables read/write lock on `name`, blocking subsequent mutations until unlocked.
 void Environment::lock(const std::string& name) {
     VariableBinding* binding = findBindingMutable(name);
     if (!binding) {
@@ -717,6 +729,7 @@ void Environment::lock(const std::string& name) {
     binding->locked = true;
 }
 
+// Releases any mutation lock on `name`.
 void Environment::unlock(const std::string& name) {
     VariableBinding* binding = findBindingMutable(name);
     if (!binding) {
@@ -793,6 +806,7 @@ void Environment::addExpressionGuard(const Expr& condition) {
         currentScopeId());
 }
 
+// Registers a live closure guard from generated C++ and validates it immediately.
 void Environment::addLiveGuard(
     std::function<bool()> check,
     std::string description
@@ -822,6 +836,7 @@ bool Environment::hasGuard(const std::string& name) const {
     return guards_.hasGuard(name, b->scopeId) || !liveGuards_.empty();
 }
 
+// Builds the snapshot list of active variables consumed by `preview()`.
 std::vector<PreviewVariableInfo> Environment::exportActiveVariables() const {
     std::vector<PreviewVariableInfo> result;
 
@@ -850,6 +865,7 @@ std::vector<PreviewVariableInfo> Environment::exportActiveVariables() const {
     return result;
 }
 
+// Captures deep copies and scope/binding metadata of `names` for checkpointing.
 std::vector<VariableSnapshot> Environment::captureVariables(
     const std::vector<std::string>& names
 ) const {
@@ -882,6 +898,7 @@ std::vector<VariableSnapshot> Environment::captureVariables(
     return snapshots;
 }
 
+// Restores all checkpointed variables only if scope, binding ID, type, lock, and guard checks pass.
 void Environment::restoreVariablesAtomically(
     const std::vector<VariableSnapshot>& variables
 ) {
@@ -974,6 +991,7 @@ void Environment::restoreVariablesAtomically(
     }
 }
 
+// Binds `env` as the active snapshot source for global `gash::preview()` calls.
 void registerPreviewEnvironment(const Environment* env) {
     if (!env) {
         setPreviewProvider({});

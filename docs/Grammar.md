@@ -236,7 +236,10 @@ functionDeclaration = "func", identifier,
 
 parameters = parameter, { ",", parameter } ;
 
-parameter = simpleType, identifier ;
+parameter = typeName, identifier ;
+
+typeName = simpleType
+         | "list", "<", simpleType, ">" ;
 
 simpleType = "int"
            | "float"

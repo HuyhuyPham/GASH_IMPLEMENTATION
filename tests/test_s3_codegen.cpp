@@ -1,4 +1,6 @@
 
+// Codegen test verifying typed function declarations and calls emission.
+
 #if __has_include("../include/CodeGenerator.h")
 #include "../include/CodeGenerator.h"
 #else
@@ -13,6 +15,7 @@
 
 using namespace gash;
 
+// Constructs an AST with a function declaration and call, printing C++ output.
 int main() {
     try {
         Program program;

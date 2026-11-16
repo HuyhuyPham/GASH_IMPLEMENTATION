@@ -1,3 +1,4 @@
+// Implements CompilerPipeline to write C++, invoke g++, and execute compiled GASH binaries.
 #if __has_include("../include/CompilerPipeline.h")
 #include "../include/CompilerPipeline.h"
 #include "../include/CodeGenerator.h"
@@ -26,6 +27,7 @@ namespace gash
 {
     namespace
     {
+        // Spawns an external process and returns its exit status synchronously.
         int runProcess(const std::string &program, const std::vector<std::string> &args)
         {
 #ifdef _WIN32
@@ -130,8 +132,41 @@ namespace gash
             return WEXITSTATUS(status);
 #endif
         }
+        // Locates the repository root containing include/ and runtime/ headers.
+        std::filesystem::path findRepoRoot()
+        {
+            auto isRepoRoot = [](const std::filesystem::path &candidate)
+            {
+                return std::filesystem::is_regular_file(candidate / "include" / "AST.h") &&
+                       std::filesystem::is_regular_file(candidate / "runtime" / "Environment.h");
+            };
+
+            std::filesystem::path fromSource =
+                std::filesystem::path(__FILE__).parent_path().parent_path();
+            if (!fromSource.empty() && isRepoRoot(fromSource))
+            {
+                return fromSource;
+            }
+
+            std::filesystem::path probe = std::filesystem::current_path();
+            for (int depth = 0; depth < 6 && !probe.empty(); ++depth)
+            {
+                if (isRepoRoot(probe))
+                {
+                    return probe;
+                }
+                if (probe == probe.parent_path())
+                {
+                    break;
+                }
+                probe = probe.parent_path();
+            }
+
+            return fromSource.empty() ? std::filesystem::current_path() : fromSource;
+        }
     } // anonymous namespace
 
+    // Emits generated C++17 code for `program` into `outputPath`.
     void CompilerPipeline::writeGeneratedCpp(
         const Program &program,
         const std::filesystem::path &outputPath)
@@ -161,6 +196,7 @@ namespace gash
         }
     }
 
+    // Invokes g++ to compile `cppPath` together with the GASH runtime into `executablePath`.
     void CompilerPipeline::compileGeneratedCpp(
         const std::filesystem::path &cppPath,
         const std::filesystem::path &executablePath)
@@ -176,8 +212,7 @@ namespace gash
             std::filesystem::create_directories(executablePath.parent_path());
         }
 
-        std::filesystem::path repoRoot =
-            std::filesystem::path(__FILE__).parent_path().parent_path();
+        std::filesystem::path repoRoot = findRepoRoot();
         std::filesystem::path includeDir = repoRoot / "include";
         std::filesystem::path runtimeDir = repoRoot / "runtime";
 
@@ -192,7 +227,9 @@ namespace gash
             (runtimeDir / "Guard.cpp").string(),
             (runtimeDir / "Environment.cpp").string(),
             (runtimeDir / "Inspect.cpp").string(),
+            (runtimeDir / "List.cpp").string(),
             (runtimeDir / "Preview.cpp").string(),
+            (runtimeDir / "Value.cpp").string(),
             "-o",
             executablePath.string()};
 
@@ -205,6 +242,7 @@ namespace gash
         }
     }
 
+    // Executes the compiled native GASH binary and returns its exit code.
     int CompilerPipeline::runExecutable(
         const std::filesystem::path &executablePath)
     {
@@ -218,6 +256,7 @@ namespace gash
         return runProcess(path, {path});
     }
 
+    // Generates C++, compiles it with g++, and executes the resulting binary.
     int CompilerPipeline::compileAndRun(
         const gash::Program &program,
         const std::filesystem::path &cppPath,

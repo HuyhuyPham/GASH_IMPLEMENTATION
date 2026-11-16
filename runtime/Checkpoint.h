@@ -1,3 +1,4 @@
+// Declares VariableSnapshot, CheckpointEnvironment, and CheckpointManager for state save/restore.
 #ifndef GASH_CHECKPOINT_H
 #define GASH_CHECKPOINT_H
 

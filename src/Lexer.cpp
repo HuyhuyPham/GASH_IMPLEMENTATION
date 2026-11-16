@@ -1,3 +1,4 @@
+// Implements Lexer tokenization rules for identifiers, literals, operators, and comments.
 #if __has_include("../include/Lexer.h")
 #include "../include/Lexer.h"
 #else
@@ -11,19 +12,23 @@ namespace gash {
 
 namespace {
 
+// Returns true if `c` can start an identifier (ASCII letter or underscore).
 bool isAlpha(char c) {
     return std::isalpha(static_cast<unsigned char>(c)) != 0
         || c == '_';
 }
 
+// Returns true if `c` is an ASCII decimal digit.
 bool isDigit(char c) {
     return std::isdigit(static_cast<unsigned char>(c)) != 0;
 }
 
+// Returns true if `c` is valid after the first character of an identifier.
 bool isAlphaNumeric(char c) {
     return isAlpha(c) || isDigit(c);
 }
 
+// Returns true if `c` is a supported escape character after backslash.
 bool isValidEscape(char c) {
     return c == 'n' || c == 't' || c == 'r'
         || c == '0' || c == '\\'

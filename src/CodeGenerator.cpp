@@ -1,3 +1,4 @@
+// Implements CodeGenerator, lowering AST statements and expressions into C++17 source code.
 #if __has_include("../include/CodeGenerator.h")
 #include "../include/CodeGenerator.h"
 #include "../include/Semantic.h"
@@ -33,7 +34,15 @@ namespace gash
             {
                 throw std::runtime_error("Variable declaration requires an initializer");
             }
-            emitLine("auto gash_" + decl->name + " = " + emitExpression(*decl->initializer) + ";");
+            std::string initExpr = emitExpression(*decl->initializer);
+            if (!inFunctionOrBlock && hoistedGlobals.count(decl->name) > 0)
+            {
+                emitLine("gash_" + decl->name + " = " + initExpr + ";");
+            }
+            else
+            {
+                emitLine("auto gash_" + decl->name + " = " + initExpr + ";");
+            }
             emitLine("gash_env.bindReference(\"" + escapeString(decl->name) + "\", gash_" + decl->name + ");");
             return;
         }
@@ -46,9 +55,9 @@ namespace gash
                 {
                     if (call->arguments.size() != 1)
                     {
-                        throw std::runtime_error("Initial output() implementation requires one argument");
+                        throw std::runtime_error("output() requires exactly one argument");
                     }
-                    emitLine("std::cout << " + emitExpression(*call->arguments[0]) + " << '\\n';");
+                    emitLine("gash::writeOutput(std::cout, " + emitExpression(*call->arguments[0]) + ");");
                     return;
                 }
             }
@@ -59,12 +68,24 @@ namespace gash
         {
             emitLine("{");
             indentLevel++;
-            int scopeId = nextScopeGuardId++;
-            emitLine("gash::ScopeGuard gash_scope_" + std::to_string(scopeId) + "(gash_env);");
-            for (std::size_t i = 0; i < blockStmt->statements.size(); i++)
+            bool prevInBlock = inFunctionOrBlock;
+            inFunctionOrBlock = true;
+            try
             {
-                emitStatement(*blockStmt->statements[i]);
+                int scopeId = nextScopeGuardId++;
+                emitLine("gash::ScopeGuard gash_scope_" + std::to_string(scopeId) + "(gash_env);");
+                for (std::size_t i = 0; i < blockStmt->statements.size(); i++)
+                {
+                    emitStatement(*blockStmt->statements[i]);
+                }
             }
+            catch (...)
+            {
+                inFunctionOrBlock = prevInBlock;
+                indentLevel--;
+                throw;
+            }
+            inFunctionOrBlock = prevInBlock;
             indentLevel--;
             emitLine("}");
             return;
@@ -110,10 +131,23 @@ namespace gash
             std::string limitName = "gash_repeat_limit_" + std::to_string(id);
             emitLine("{");
             indentLevel++;
+            bool prevInBlock = inFunctionOrBlock;
+            inFunctionOrBlock = true;
             emitLine("const int " + limitName + " = " + times + ";");
+            emitLine("if (" + limitName + " < 0) throw std::runtime_error(\"Repeat count cannot be negative\");");
             emitLine("for (int " + counterName + " = 0; (gash::BudgetScope::tick(), " + counterName + " < " + limitName + "); " + counterName + "++) {");
             indentLevel++;
-            emitStatement(*repeatStmt->body);
+            try
+            {
+                emitStatement(*repeatStmt->body);
+            }
+            catch (...)
+            {
+                inFunctionOrBlock = prevInBlock;
+                indentLevel -= 2;
+                throw;
+            }
+            inFunctionOrBlock = prevInBlock;
             indentLevel--;
             emitLine("}");
             indentLevel--;
@@ -149,48 +183,76 @@ namespace gash
         if (const auto *functionStmt = dynamic_cast<const FunctionDeclStmt *>(&stmt))
         {
             std::string name = "gash_" + functionStmt->name;
-            std::string returnTypeCpp = "auto";
-            auto foundRet = functionReturnTypes.find(functionStmt->name);
-            if (foundRet != functionReturnTypes.end() && foundRet->second.isValid())
-            {
-                returnTypeCpp = foundRet->second.toCppType();
-            }
+            Type resolvedType = resolveFunctionReturnType(*functionStmt);
+            std::string returnTypeCpp = (resolvedType.isValid()) ? resolvedType.toCppType() : "auto";
 
-            std::string signature = returnTypeCpp + " " + name + "(";
+            std::string paramDeclList;
+            std::string paramTypeList;
             for (std::size_t i = 0; i < functionStmt->parameters.size(); i++)
             {
                 const auto &param = functionStmt->parameters[i];
                 std::string cppType = mapType(param.type);
                 if (i > 0)
                 {
-                    signature += ", ";
+                    paramDeclList += ", ";
+                    paramTypeList += ", ";
                 }
-                signature += cppType + " gash_" + param.name;
+                paramDeclList += cppType + " gash_" + param.name;
+                paramTypeList += cppType;
             }
-            signature += ")";
-            emitLine(signature);
 
-            emitLine("{");
-            indentLevel++;
-            int scopeId = nextScopeGuardId++;
-            emitLine("gash::ScopeGuard gash_scope_" + std::to_string(scopeId) + "(gash_env);");
-            for (const auto &param : functionStmt->parameters)
+            if (inFunctionOrBlock)
             {
-                emitLine("gash_env.bindReference(\"" + escapeString(param.name) + "\", gash_" + param.name + ");");
-            }
-            if (const auto *bodyBlock = dynamic_cast<const BlockStmt *>(functionStmt->body.get()))
-            {
-                for (std::size_t i = 0; i < bodyBlock->statements.size(); i++)
+                // Local/nested function inside a block: emit as std::function to stay valid C++17.
+                if (returnTypeCpp == "auto")
                 {
-                    emitStatement(*bodyBlock->statements[i]);
+                    returnTypeCpp = "void";
+                }
+                emitLine("std::function<" + returnTypeCpp + "(" + paramTypeList + ")> " + name + ";");
+                emitLine(name + " = [&](" + paramDeclList + ") -> " + returnTypeCpp + " {");
+            }
+            else
+            {
+                emitLine(returnTypeCpp + " " + name + "(" + paramDeclList + ")");
+                emitLine("{");
+            }
+
+            indentLevel++;
+            bool prevInBlock = inFunctionOrBlock;
+            inFunctionOrBlock = true;
+            try
+            {
+                int scopeId = nextScopeGuardId++;
+                emitLine("gash::ScopeGuard gash_scope_" + std::to_string(scopeId) + "(gash_env);");
+                for (const auto &param : functionStmt->parameters)
+                {
+                    emitLine("gash_env.bindReference(\"" + escapeString(param.name) + "\", gash_" + param.name + ");");
+                }
+                if (const auto *bodyBlock = dynamic_cast<const BlockStmt *>(functionStmt->body.get()))
+                {
+                    for (std::size_t i = 0; i < bodyBlock->statements.size(); i++)
+                    {
+                        emitStatement(*bodyBlock->statements[i]);
+                    }
+                }
+                else if (functionStmt->body)
+                {
+                    emitStatement(*functionStmt->body);
+                }
+                if (returnTypeCpp != "void" && returnTypeCpp != "auto")
+                {
+                    emitLine("throw std::runtime_error(\"Function '" + escapeString(functionStmt->name) + "' reached end without returning a value\");");
                 }
             }
-            else if (functionStmt->body)
+            catch (...)
             {
-                emitStatement(*functionStmt->body);
+                inFunctionOrBlock = prevInBlock;
+                indentLevel--;
+                throw;
             }
+            inFunctionOrBlock = prevInBlock;
             indentLevel--;
-            emitLine("}");
+            emitLine(prevInBlock ? "};" : "}");
             return;
         }
         if (const auto *budget = dynamic_cast<const BudgetStmt *>(&stmt))
@@ -280,8 +342,7 @@ namespace gash
         }
         if (const auto *node = dynamic_cast<const CharExpr *>(&expr))
         {
-            std::string ch(1, node->value);
-            return "'" + escapeString(ch) + "'";
+            return "'" + escapeChar(node->value) + "'";
         }
         if (const auto *node = dynamic_cast<const StringExpr *>(&expr))
         {
@@ -297,7 +358,15 @@ namespace gash
             std::string right = emitExpression(*node->right);
             if (node->op == "^")
             {
-                return "static_cast<std::decay_t<decltype(" + left + ")>>(std::pow(" + left + ", " + right + "))";
+                return "gash::safePower(" + left + ", " + right + ")";
+            }
+            if (node->op == "/")
+            {
+                return "gash::safeDivide(" + left + ", " + right + ")";
+            }
+            if (node->op == "%")
+            {
+                return "gash::safeModulo(" + left + ", " + right + ")";
             }
             return "(" + left + " " + node->op + " " + right + ")";
         }
@@ -424,6 +493,21 @@ namespace gash
         throw std::runtime_error("Expression type not yet supported by CodeGenerator");
     }
 
+    // Escape a single GASH character literal for safe C++ output.
+    std::string CodeGenerator::escapeChar(char value)
+    {
+        switch (value)
+        {
+            case '\\': return "\\\\";
+            case '\'': return "\\'";
+            case '\n': return "\\n";
+            case '\t': return "\\t";
+            case '\r': return "\\r";
+            case '\0': return "\\0";
+            default:   return std::string(1, value);
+        }
+    }
+
     // Escape a GASH string for C++ output.
     std::string CodeGenerator::escapeString(const std::string &value)
     {
@@ -450,6 +534,17 @@ namespace gash
             {
                 result += "\\r";
             }
+            else if (value[i] == '\0')
+            {
+                if (i + 1 < value.size() && value[i + 1] >= '0' && value[i + 1] <= '7')
+                {
+                    result += "\\0\"\"";
+                }
+                else
+                {
+                    result += "\\0";
+                }
+            }
             else
             {
                 result += value[i];
@@ -458,25 +553,62 @@ namespace gash
         return result;
     }
 
+    // Looks up the inferred return type of `fn` from semantic analysis results.
+    Type CodeGenerator::resolveFunctionReturnType(const FunctionDeclStmt &fn) const
+    {
+        auto byNode = functionReturnTypesByNode.find(&fn);
+        if (byNode != functionReturnTypesByNode.end() && byNode->second.isValid())
+        {
+            return byNode->second;
+        }
+        auto byName = functionReturnTypes.find(fn.name);
+        if (byName != functionReturnTypes.end() && byName->second.isValid())
+        {
+            return byName->second;
+        }
+        return Type::Unknown();
+    }
+
+    // Emits a complete, self-contained C++17 source file for the given GASH program.
     std::string CodeGenerator::generate(const Program &program)
     {
         indentLevel = 0;
         nextRepeatId = 0;
         nextScopeGuardId = 0;
+        inFunctionOrBlock = false;
         functionReturnTypes.clear();
+        functionReturnTypesByNode.clear();
+        hoistedGlobals.clear();
         output.str("");
         output.clear();
 
-        // Populate inferred function return types using SemanticAnalyzer when available.
+        std::vector<std::pair<std::string, std::string>> globalVarDecls;
+
+        // Populate inferred function return types and top-level variable types
+        // using SemanticAnalyzer when available.
         try
         {
             SemanticAnalyzer semantic;
             semantic.analyze(program);
+            functionReturnTypesByNode = semantic.functionReturnTypes();
             for (const auto &stmt : program.statements)
             {
                 if (const auto *fn = dynamic_cast<const FunctionDeclStmt *>(stmt.get()))
                 {
                     functionReturnTypes[fn->name] = semantic.getFunctionReturnType(fn->name);
+                }
+                else if (const auto *varDecl = dynamic_cast<const VarDeclStmt *>(stmt.get()))
+                {
+                    if (const Symbol *sym = semantic.lookup(varDecl->name))
+                    {
+                        if (sym->kind == SymbolKind::Variable && sym->type.isValid() && !sym->type.isVoid())
+                        {
+                            if (hoistedGlobals.insert(varDecl->name).second)
+                            {
+                                globalVarDecls.emplace_back(varDecl->name, sym->type.toCppType());
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -488,6 +620,7 @@ namespace gash
         emitLine("#include <iostream>");
         emitLine("#include <string>");
         emitLine("#include <cmath>");
+        emitLine("#include <functional>");
         emitLine("#include <stdexcept>");
         emitLine("#include <type_traits>");
         emitLine("#include \"Budget.h\"");
@@ -500,6 +633,10 @@ namespace gash
         emitLine("");
         emitLine("static gash::Environment gash_env;");
         emitLine("static gash::CheckpointManager gash_checkpoints;");
+        for (const auto &gv : globalVarDecls)
+        {
+            emitLine("static " + gv.second + " gash_" + gv.first + "{};");
+        }
         emitLine("");
 
         for (const auto &stmt : program.statements)
@@ -513,6 +650,8 @@ namespace gash
 
         emitLine("int main(){");
         indentLevel++;
+        emitLine("try {");
+        indentLevel++;
         emitLine("gash::registerPreviewEnvironment(&gash_env);");
 
         for (const auto &stmt : program.statements)
@@ -524,6 +663,20 @@ namespace gash
         }
 
         emitLine("return 0;");
+        indentLevel--;
+        emitLine("} catch (const gash::BudgetExceeded& error) {");
+        indentLevel++;
+        emitLine("std::cout.flush();");
+        emitLine("std::cerr << \"Runtime error: \" << error.what() << '\\n';");
+        emitLine("return 1;");
+        indentLevel--;
+        emitLine("} catch (const std::exception& error) {");
+        indentLevel++;
+        emitLine("std::cout.flush();");
+        emitLine("std::cerr << \"Runtime error: \" << error.what() << '\\n';");
+        emitLine("return 1;");
+        indentLevel--;
+        emitLine("}");
 
         indentLevel--;
         emitLine("}");
@@ -532,6 +685,7 @@ namespace gash
     }
 
     // helper
+    // Maps a GASH type name to its C++17 runtime equivalent.
     std::string CodeGenerator::mapType(const std::string &gashType)
     {
         Type parsed = Type::fromName(gashType);

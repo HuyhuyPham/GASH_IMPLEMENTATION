@@ -1,3 +1,4 @@
+// Unit and integration tests for Environment scopes, locks, guards, and atomic checkpoints.
 #if __has_include("../runtime/Checkpoint.h")
 #include "../runtime/Checkpoint.h"
 #include "../runtime/Environment.h"
@@ -26,6 +27,7 @@ using namespace gash;
 
 namespace {
 
+// Returns true if invoking `fn()` throws a std::runtime_error.
 template <typename Fn>
 bool throwsRuntimeError(Fn&& fn) {
     try {
@@ -36,6 +38,7 @@ bool throwsRuntimeError(Fn&& fn) {
     return false;
 }
 
+// Parses a standalone GASH expression string into an AST node for guard tests.
 std::unique_ptr<Expr> parseExpr(const std::string& exprSource) {
     Lexer lexer(exprSource);
     auto tokens = lexer.tokenize();
@@ -43,6 +46,7 @@ std::unique_ptr<Expr> parseExpr(const std::string& exprSource) {
     return parser.parseExpressionOnly();
 }
 
+// Executes one structured test block and updates the pass counter.
 void runTest(
     int id,
     const std::string& title,
@@ -62,6 +66,7 @@ void runTest(
 
 } // namespace
 
+// Runs all 9 Environment, guard, lock, and checkpoint test suites.
 int main() {
     int passed = 0;
     const int total = 9;

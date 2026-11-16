@@ -1,3 +1,4 @@
+// Declares Environment and ScopeGuard for runtime variable scopes, locks, guards, and checkpoints.
 #ifndef GASH_ENVIRONMENT_H
 #define GASH_ENVIRONMENT_H
 
@@ -51,19 +52,24 @@ public:
     Environment();
     ~Environment() override = default;
 
-    // Scope management
+    // Pushes a new nested runtime scope frame and returns its unique scope ID.
     std::size_t pushScope();
+    // Pops the innermost scope frame and clears guards bound to that scope.
     void popScope();
+    // Returns the current number of active runtime scope frames.
     std::size_t scopeDepth() const noexcept { return frames_.size(); }
+    // Returns the unique ID of the innermost active runtime scope frame.
     std::size_t currentScopeId() const noexcept { return frames_.back().id; }
 
-    // Variable declarations in the current innermost scope
+    // Defines a variable inferring its type from the given initial value.
     void define(const std::string& name, const Value& initialValue);
+    // Defines a variable with an explicit type and initialized value in current scope.
     void define(
         const std::string& name,
         const Type& declaredType,
         const Value& initialValue
     );
+    // Declares an uninitialized variable slot with an explicit type in current scope.
     void defineUninitialized(const std::string& name, const Type& declaredType);
 
     // Bind a generated C++ variable or list reference to the Environment (Assumption A39).
@@ -91,19 +97,21 @@ public:
     std::size_t getBindingId(const std::string& name) const;
     bool isInitialized(const std::string& name) const;
 
-    // Central assignment and mutation API (enforces types, locks, and guards)
+    // Central assignment API validating type, lock status, and guards before commit.
     void assign(const std::string& name, const Value& newValue);
 
-    // List element read/write and resize through the central mutation API
+    // Reads a list element through the Environment by variable name and index.
     Value getListElement(const std::string& name, std::int64_t index) const;
+    // Assigns a list element after verifying lock status and guard constraints.
     void assignListElement(
         const std::string& name,
         std::int64_t index,
         const Value& elementValue
     );
+    // Resizes a list after verifying lock status and guard constraints.
     void extendList(const std::string& name, std::int64_t newSize);
 
-    // Generated C++ mutation wrappers (enforce locks and guards atomically with rollback)
+    // Executes a scalar mutation on a bound C++ variable and rolls back on guard/lock error.
     template <typename Func>
     auto mutateVar(const std::string& name, Func&& fn) -> decltype(fn()) {
         beginMutation(name, false);
@@ -145,27 +153,33 @@ public:
         }
     }
 
-    // Lock and unlock controls (repeated lock/unlock is a safe no-op)
+    // Locks a variable to block further mutations until unlocked.
     void lock(const std::string& name);
+    // Unlocks a variable to re-enable mutations.
     void unlock(const std::string& name);
+    // Returns whether the named variable is currently locked.
     bool isLocked(const std::string& name) const;
 
-    // Mutation guard registration and queries
+    // Registers a single-variable predicate guard after verifying the initial value.
     void addGuard(
         const std::string& name,
         GuardPredicate predicate,
         std::string description = ""
     );
+    // Registers a typed guard callback returning bool after validating the initial value.
     void addTypedGuard(
         const std::string& name,
         TypedGuardCallback evaluator,
         std::string description = ""
     );
+    // Registers an AST expression guard evaluated against resolved variables.
     void addExpressionGuard(const Expr& condition);
+    // Registers a live C++ closure guard used by generated code and checks it immediately.
     void addLiveGuard(
         std::function<bool()> check,
         std::string description = ""
     );
+    // Returns true if any guard protects `name` or active live guards are present.
     bool hasGuard(const std::string& name) const;
 
     const GuardManager& guards() const noexcept { return guards_; }
@@ -193,11 +207,12 @@ public:
         };
     }
 
-    // CheckpointEnvironment interface implementation
+    // Captures deep snapshots of `names` for checkpoint creation.
     std::vector<VariableSnapshot> captureVariables(
         const std::vector<std::string>& names
     ) const override;
 
+    // Validates all snapshots, scopes, locks, and guards before committing restoration atomically.
     void restoreVariablesAtomically(
         const std::vector<VariableSnapshot>& variables
     ) override;

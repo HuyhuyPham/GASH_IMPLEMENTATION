@@ -1,3 +1,4 @@
+// Unit tests verifying CheckpointManager save/restore validation and atomic failure behavior.
 #include <any>
 #include <cassert>
 #include <iostream>
@@ -141,6 +142,7 @@ class FakeEnvironment final : public CheckpointEnvironment {
   std::unordered_set<std::string> guarded_;
 };
 
+// Returns true if invoking `fn()` throws a std::runtime_error.
 template <typename F>
 bool throwsRuntimeError(F&& fn) {
   try {
@@ -190,6 +192,7 @@ class InvalidCaptureEnvironment final : public CheckpointEnvironment {
 
 }  // namespace
 
+// Runs checkpoint unit tests using FakeEnvironment and InvalidCaptureEnvironment.
 int main() {
   // Test 1: Save and restore two integer variables.
   {

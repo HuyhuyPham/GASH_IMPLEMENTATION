@@ -1,3 +1,4 @@
+// Defines LexicalErrorType and the LexicalError exception carrying source line/column diagnostics.
 #ifndef GASH_LEXICAL_ERROR_H
 #define GASH_LEXICAL_ERROR_H
 
@@ -8,6 +9,7 @@
 
 namespace gash {
 
+// Categorizes lexical failures detected during tokenization.
 enum class LexicalErrorType {
     INVALID_CHARACTER,
     UNTERMINATED_STRING,
@@ -17,8 +19,10 @@ enum class LexicalErrorType {
     UNTERMINATED_COMMENT
 };
 
+// Exception thrown by Lexer when invalid tokens or literals are encountered.
 class LexicalError : public std::runtime_error {
 public:
+    // Constructs a lexical error with category, diagnostic text, and 1-based location.
     LexicalError(
         LexicalErrorType type,
         std::string message,
@@ -30,14 +34,17 @@ public:
           line_(line),
           column_(column) {}
 
+    // Returns the lexical error category.
     LexicalErrorType type() const noexcept {
         return type_;
     }
 
+    // Returns the 1-based source line where the error occurred.
     std::size_t line() const noexcept {
         return line_;
     }
 
+    // Returns the 1-based source column where the error occurred.
     std::size_t column() const noexcept {
         return column_;
     }

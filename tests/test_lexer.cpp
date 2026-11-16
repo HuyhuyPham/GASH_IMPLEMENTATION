@@ -1,3 +1,4 @@
+// Unit tests verifying Lexer tokenization, literals, escapes, comments, and error locations.
 #if __has_include("../include/Lexer.h")
 #include "../include/Lexer.h"
 #include "../include/LexicalError.h"
@@ -27,6 +28,7 @@ struct Test {
 
 std::vector<Test> tests;
 
+// Asserts `condition` holds or throws `message`.
 void require(bool condition, const std::string& message) {
     if (!condition) {
         throw std::runtime_error(message);
@@ -91,6 +93,7 @@ void checkPosition(
     require(t.column == column, "Wrong column");
 }
 
+// Registers a valid tokenization test case expecting `expected` token sequence.
 void valid(
     const std::string& id,
     const std::string& description,
@@ -105,6 +108,7 @@ void valid(
     });
 }
 
+// Registers a negative lexer test case expecting `error`.
 void invalid(
     const std::string& id,
     const std::string& description,
@@ -119,6 +123,7 @@ void invalid(
     });
 }
 
+// Registers a source position test verifying token lexeme, line, and column.
 void position(
     const std::string& id,
     const std::string& description,
@@ -136,6 +141,7 @@ void position(
     });
 }
 
+// Populates all valid, invalid, and coordinate lexer test cases.
 void registerTests() {
 
     // L01-L12: Basic lexer functionality
@@ -460,6 +466,7 @@ void registerTests() {
          TT::SEMICOLON});
 }
 
+// Executes every registered Lexer test and summarizes pass/fail counts.
 int main() {
     registerTests();
 

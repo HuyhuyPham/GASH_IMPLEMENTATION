@@ -1,4 +1,5 @@
 
+// Defines the Abstract Syntax Tree (AST) node hierarchy for expressions, statements, and programs.
 #ifndef GASH_AST_H
 #define GASH_AST_H
 

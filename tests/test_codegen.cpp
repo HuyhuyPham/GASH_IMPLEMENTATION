@@ -1,3 +1,4 @@
+// Smoke test verifying basic C++ code generation for variable declaration and output().
 #if __has_include("../include/CodeGenerator.h")
 #include "../include/CodeGenerator.h"
 #else
@@ -9,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+// Builds a minimal AST and prints generated C++ code to stdout.
 int main() {
     using namespace gash;
 

@@ -1,3 +1,4 @@
+// Implements SemanticAnalyzer for scope checks, strict type checking, and return inference.
 #if __has_include("../include/Semantic.h")
 #include "../include/Semantic.h"
 #else
@@ -8,6 +9,7 @@
 
 namespace gash {
 
+// Returns true if `name` is reserved for a GASH built-in function or type.
 bool SemanticAnalyzer::isReservedBuiltinName(const std::string& name) {
     return name == "input" ||
            name == "output" ||
@@ -22,6 +24,7 @@ bool SemanticAnalyzer::isReservedBuiltinName(const std::string& name) {
            name == "list";
 }
 
+// Retrieves the inferred return type of `functionName` from the symbol table.
 Type SemanticAnalyzer::getFunctionReturnType(const std::string& functionName) const {
     const Symbol* sym = scopes_.lookup(functionName);
     if (!sym || sym->kind != SymbolKind::Function) {
@@ -30,6 +33,16 @@ Type SemanticAnalyzer::getFunctionReturnType(const std::string& functionName) co
     return sym->type;
 }
 
+// Looks up the inferred return type recorded for a specific FunctionDeclStmt node.
+std::optional<Type> SemanticAnalyzer::getFunctionReturnType(const FunctionDeclStmt* stmt) const {
+    auto it = functionReturnTypesByNode_.find(stmt);
+    if (it == functionReturnTypesByNode_.end()) {
+        return std::nullopt;
+    }
+    return it->second;
+}
+
+// Pre-scans base-case return statements to infer recursive function return types early.
 void SemanticAnalyzer::preInferFunctionReturnType(
     const Stmt& stmt,
     FunctionContext& ctx
@@ -93,6 +106,7 @@ void SemanticAnalyzer::preInferFunctionReturnType(
     }
 }
 
+// Validates every top-level statement in a GASH Program AST.
 void SemanticAnalyzer::analyze(const Program& program) {
     for (const auto& stmt : program.statements) {
         if (!stmt) {
@@ -102,6 +116,7 @@ void SemanticAnalyzer::analyze(const Program& program) {
     }
 }
 
+// Dispatches semantic validation based on the dynamic Stmt subclass.
 void SemanticAnalyzer::analyzeStatement(const Stmt& stmt) {
     if (const auto* block = dynamic_cast<const BlockStmt*>(&stmt)) {
         analyzeBlock(*block, true);
@@ -171,6 +186,7 @@ void SemanticAnalyzer::analyzeStatement(const Stmt& stmt) {
     throw SemanticError("Unsupported statement node", stmt.location);
 }
 
+// Validates all statements in a block, optionally pushing a new lexical scope.
 void SemanticAnalyzer::analyzeBlock(const BlockStmt& stmt, bool createNewScope) {
     if (createNewScope) {
         scopes_.pushScope();
@@ -189,6 +205,7 @@ void SemanticAnalyzer::analyzeBlock(const BlockStmt& stmt, bool createNewScope) 
     }
 }
 
+// Validates variable initialization and records its inferred type in current scope.
 void SemanticAnalyzer::analyzeVarDecl(const VarDeclStmt& stmt) {
     if (stmt.name.empty()) {
         throw SemanticError("Variable name cannot be empty", stmt.location);
@@ -354,6 +371,7 @@ void SemanticAnalyzer::analyzeSkipStmt(const SkipStmt& stmt) {
     }
 }
 
+// Validates a function declaration, parameter list, and body return consistency.
 void SemanticAnalyzer::analyzeFunctionDecl(const FunctionDeclStmt& stmt) {
     if (stmt.name.empty()) {
         throw SemanticError("Function name cannot be empty", stmt.location);
@@ -451,9 +469,11 @@ void SemanticAnalyzer::analyzeFunctionDecl(const FunctionDeclStmt& stmt) {
         if (inferred.has_value()) {
             declaredFn->type = *inferred;
             declaredFn->hasReturnValue = true;
+            functionReturnTypesByNode_[&stmt] = *inferred;
         } else {
             declaredFn->type = Type::Void();
             declaredFn->hasReturnValue = false;
+            functionReturnTypesByNode_[&stmt] = Type::Void();
         }
     }
 }
@@ -598,6 +618,7 @@ void SemanticAnalyzer::analyzeBudgetStmt(const BudgetStmt& stmt) {
     analyzeBlock(*stmt.body, true);
 }
 
+// Infers and validates the static GASH Type of an expression node.
 Type SemanticAnalyzer::inferType(const Expr& expr) {
     if (dynamic_cast<const IntegerExpr*>(&expr)) {
         return Type::Int();
@@ -864,6 +885,7 @@ Type SemanticAnalyzer::inferUnaryExpr(const UnaryExpr& expr) {
     throw SemanticError("Unknown unary operator '" + expr.op + "'", expr.location);
 }
 
+// Validates operands and infers the result type of a binary expression.
 Type SemanticAnalyzer::inferBinaryExpr(const BinaryExpr& expr) {
     if (!expr.left || !expr.right) {
         throw SemanticError("Binary expression missing operand", expr.location);
@@ -947,6 +969,7 @@ Type SemanticAnalyzer::inferBinaryExpr(const BinaryExpr& expr) {
     throw SemanticError("Unknown binary operator '" + expr.op + "'", expr.location);
 }
 
+// Validates assignment target mutability and matching right-hand value type.
 Type SemanticAnalyzer::inferAssignmentExpr(const AssignmentExpr& expr) {
     if (!expr.target || !expr.value) {
         throw SemanticError("Invalid assignment expression", expr.location);

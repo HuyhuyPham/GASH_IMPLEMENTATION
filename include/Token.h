@@ -1,4 +1,5 @@
 
+// Defines TokenType, Token, and tokenTypeName() used across Lexer and Parser.
 #ifndef GASH_TOKEN_H
 #define GASH_TOKEN_H
 
@@ -86,6 +87,7 @@ enum class TokenType {
     END_OF_FILE
 };
 
+// Represents one lexical token with its type, raw lexeme, and 1-based location.
 struct Token {
     TokenType type;
     std::string lexeme;

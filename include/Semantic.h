@@ -1,3 +1,4 @@
+// Declares SemanticError and SemanticAnalyzer for static type checking, scope validation, and return inference.
 #ifndef GASH_SEMANTIC_H
 #define GASH_SEMANTIC_H
 
@@ -16,17 +17,22 @@ namespace gash {
 // Exception thrown when semantic validation or type checking fails.
 class SemanticError : public std::runtime_error {
 public:
+    // Constructs a semantic error with an optional AST source location.
     SemanticError(const std::string& message, SourceLocation loc = {})
         : std::runtime_error(formatMessage(message, loc)),
           location_(loc) {}
 
+    // Returns the 1-based source line where the error occurred.
     int line() const noexcept { return location_.line; }
+    // Returns the 1-based source column where the error occurred.
     int column() const noexcept { return location_.column; }
+    // Returns the full SourceLocation attached to this error.
     SourceLocation location() const noexcept { return location_; }
 
 private:
     SourceLocation location_;
 
+    // Formats the error string with line and column metadata when available.
     static std::string formatMessage(const std::string& msg, SourceLocation loc) {
         if (loc.line > 0) {
             return "Semantic error at line " + std::to_string(loc.line) +
@@ -61,6 +67,10 @@ public:
 
     // Retrieve the inferred return type of a declared function (Assumption A29).
     Type getFunctionReturnType(const std::string& functionName) const;
+    std::optional<Type> getFunctionReturnType(const FunctionDeclStmt* stmt) const;
+    const std::unordered_map<const FunctionDeclStmt*, Type>& functionReturnTypes() const noexcept {
+        return functionReturnTypesByNode_;
+    }
 
 private:
     struct FunctionContext {
@@ -81,6 +91,7 @@ private:
     std::size_t loopDepth_ = 0;
     std::vector<FunctionContext> functionStack_;
     std::unordered_map<std::string, CheckpointRecord> checkpoints_;
+    std::unordered_map<const FunctionDeclStmt*, Type> functionReturnTypesByNode_;
 
     // Statement analysis helpers
     void analyzeBlock(const BlockStmt& stmt, bool createNewScope = true);

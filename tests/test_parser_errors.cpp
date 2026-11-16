@@ -1,5 +1,5 @@
 
-// Parser error handling tests.
+// Tests confirming Parser rejects malformed GASH syntax and accepts valid forms.
 
 #include <iostream>
 #include <stdexcept>
@@ -52,6 +52,7 @@ void expectValid(const std::string& source) {
     (void)program;
 }
 
+// Runs all positive and negative Parser syntax validation tests.
 int main() {
 
     // Test 1: Missing variable value.

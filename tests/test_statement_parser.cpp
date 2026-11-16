@@ -1,4 +1,6 @@
 
+// Unit tests verifying Parser support for all GASH statement AST constructs.
+
 #include <cassert>
 #include <iostream>
 #include <utility>
@@ -13,6 +15,7 @@
 
 using namespace gash;
 
+// Runs statement parsing tests across declarations, control flow, functions, and transparency.
 int main() {
   // Two complete GASH statements.
   Lexer lexer("x = 10; y = x + 5;");

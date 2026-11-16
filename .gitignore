@@ -3,3 +3,4 @@
 /build-mac/
 /examples/*.out
 /examples/*.cpp
+/examples/*.exe

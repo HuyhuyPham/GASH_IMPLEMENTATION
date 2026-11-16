@@ -1,4 +1,5 @@
 
+// Verifies CodeGenerator produces C++ checkpoint save and restore runtime calls.
 #include <iostream>
 #include <memory>
 #include <stdexcept>
@@ -15,6 +16,7 @@
 
 using namespace gash;
 
+// Constructs an AST with checkpoint/restore statements and emits C++ code.
 int main() {
     Program program;
 

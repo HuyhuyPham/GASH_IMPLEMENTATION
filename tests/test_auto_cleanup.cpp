@@ -1,4 +1,5 @@
 
+// Tests RAII memory cleanup of List<T> across scope exits, copies, resizing, and exceptions.
 #if __has_include("../runtime/List.h")
 #include "../runtime/List.h"
 #else
@@ -45,12 +46,14 @@ struct Tracked {
 int Tracked::live = 0;
 int Tracked::destroyed = 0;
 
+// Asserts `condition`, throwing `message` if false.
 void require(bool condition, const char* message) {
     if (!condition) {
         throw std::runtime_error(message);
     }
 }
 
+// Runs one cleanup test while verifying zero Tracked object leaks before and after.
 template <typename F>
 void run(const char* name, F test, int& passed) {
     require(
@@ -71,6 +74,7 @@ void run(const char* name, F test, int& passed) {
 
 } // namespace
 
+// Executes the automatic RAII resource cleanup test suite.
 int main() {
     int passed = 0;
 

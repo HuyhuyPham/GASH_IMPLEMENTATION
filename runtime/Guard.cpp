@@ -1,3 +1,4 @@
+// Implements GuardManager registration, AST guard expression evaluation, and candidate validation.
 #include "Guard.h"
 
 #include <algorithm>
@@ -85,6 +86,7 @@ std::unique_ptr<Expr> cloneExpr(const Expr& expr) {
     throw std::runtime_error("Unsupported expression node in guard condition");
 }
 
+// Recursively collects distinct variable names referenced inside an AST expression.
 void collectVarsRecursive(
     const Expr& expr,
     std::vector<std::string>& out,
@@ -132,6 +134,7 @@ void collectVarsRecursive(
 
 } // anonymous namespace
 
+// Ensures a guard condition evaluated to a strict boolean Value and returns it.
 bool GuardManager::ensureBooleanResult(
     const Value& result,
     const std::string& context
@@ -144,6 +147,7 @@ bool GuardManager::ensureBooleanResult(
     return result.asBool();
 }
 
+// Wraps a C++ boolean predicate as a TypedGuardCallback and registers it.
 void GuardManager::addPredicateGuard(
     const std::string& variableName,
     std::size_t variableScopeId,
@@ -166,6 +170,7 @@ void GuardManager::addPredicateGuard(
         declaredScopeId);
 }
 
+// Registers a typed candidate guard after checking its type and current variable state.
 void GuardManager::addTypedGuard(
     const std::string& variableName,
     std::size_t variableScopeId,
@@ -204,6 +209,7 @@ void GuardManager::addTypedGuard(
     rules_.push_back(std::move(rule));
 }
 
+// Registers a cloned AST guard expression after validating its type and initial value.
 void GuardManager::addExpressionGuard(
     const Expr& condition,
     std::size_t variableScopeId,
@@ -241,6 +247,7 @@ void GuardManager::addExpressionGuard(
     rules_.push_back(std::move(rule));
 }
 
+// Checks whether a proposed assignment value satisfies all guards touching `variableName`.
 void GuardManager::validateCandidate(
     const std::string& variableName,
     std::size_t scopeId,
@@ -297,6 +304,7 @@ void GuardManager::validateCandidate(
     }
 }
 
+// Validates every active guard against a candidate environment resolver for atomic restore.
 void GuardManager::validateAll(const VariableResolver& candidateResolver) const {
     if (!candidateResolver) {
         throw std::runtime_error("Candidate resolver cannot be null");
@@ -361,6 +369,7 @@ std::vector<std::string> GuardManager::collectVariables(const Expr& expr) {
     return vars;
 }
 
+// Evaluates an AST expression against `resolver` using GASH runtime type rules.
 Value GuardManager::evaluateExpression(
     const Expr& expr,
     const VariableResolver& resolver

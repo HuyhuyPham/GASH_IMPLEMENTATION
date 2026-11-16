@@ -21,7 +21,9 @@ add_library(gash_core
     runtime/Guard.cpp
     runtime/Environment.cpp
     runtime/Inspect.cpp
+    runtime/List.cpp
     runtime/Preview.cpp
+    runtime/Value.cpp
 )
 
 target_include_directories(gash_core
@@ -119,6 +121,46 @@ if(BUILD_TESTING)
     add_executable(test_integration tests/test_integration.cpp)
     target_link_libraries(test_integration PRIVATE gash_core)
     add_test(NAME IntegrationTests COMMAND test_integration)
+
+    add_executable(test_e2e_pipeline tests/test_e2e_pipeline.cpp)
+    target_link_libraries(test_e2e_pipeline PRIVATE gash_core)
+    add_test(NAME E2EPipelineTests COMMAND test_e2e_pipeline)
+
+    add_test(
+        NAME HelloE2E
+        COMMAND ${CMAKE_COMMAND}
+            "-DGASH_EXECUTABLE=$<TARGET_FILE:gash>"
+            "-DGASH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/examples/hello.gash"
+            "-DEXPECTED_LINES=Hello, GASH!"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_gash_example.cmake"
+    )
+
+    add_test(
+        NAME ConditionsE2E
+        COMMAND ${CMAKE_COMMAND}
+            "-DGASH_EXECUTABLE=$<TARGET_FILE:gash>"
+            "-DGASH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/examples/conditions.gash"
+            "-DEXPECTED_LINES=High Distinction|Verified"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_gash_example.cmake"
+    )
+
+    add_test(
+        NAME FunctionsE2E
+        COMMAND ${CMAKE_COMMAND}
+            "-DGASH_EXECUTABLE=$<TARGET_FILE:gash>"
+            "-DGASH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/examples/functions.gash"
+            "-DEXPECTED_LINES=30|120"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_gash_example.cmake"
+    )
+
+    add_test(
+        NAME LoopsE2E
+        COMMAND ${CMAKE_COMMAND}
+            "-DGASH_EXECUTABLE=$<TARGET_FILE:gash>"
+            "-DGASH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/examples/loops.gash"
+            "-DEXPECTED_LINES=1|3|4|repeat step|repeat step|repeat step"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_gash_example.cmake"
+    )
 
     add_test(
         NAME CheckpointSmokeE2E

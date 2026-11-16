@@ -1,4 +1,5 @@
 
+// Declares Lexer, which tokenizes raw GASH source code into a stream of Token objects.
 #ifndef GASH_LEXER_H
 #define GASH_LEXER_H
 
@@ -12,6 +13,7 @@ namespace gash {
 
 class Lexer {
 public:
+    // Constructs a lexer over the given GASH source string.
     explicit Lexer(const std::string& source);
 
     // Convert GASH source code into tokens.

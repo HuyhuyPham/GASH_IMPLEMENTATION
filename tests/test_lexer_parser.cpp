@@ -1,4 +1,6 @@
 
+// Integration tests verifying Lexer + Parser expression AST generation together.
+
 #include <cassert>
 #include <iostream>
 #include <memory>
@@ -30,6 +32,7 @@ std::unique_ptr<Expr> parseSource(const std::string& source) {
   return parser.parseExpressionOnly();
 }
 
+// Runs combined Lexer-to-Parser expression precedence and grouping tests.
 int main() {
   // Test 1: Arithmetic precedence.
   {

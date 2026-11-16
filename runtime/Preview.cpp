@@ -1,4 +1,6 @@
 
+// Implements preview() snapshot provider storage and formatted active-variable display.
+
 #include "Preview.h"
 
 #include <stdexcept>
@@ -9,6 +11,7 @@ namespace gash {
 
 namespace {
 
+// Returns the singleton storage slot holding the registered PreviewProvider callback.
 PreviewProvider& previewProviderStorage() {
     static PreviewProvider provider;
     return provider;
@@ -16,10 +19,12 @@ PreviewProvider& previewProviderStorage() {
 
 } // anonymous namespace
 
+// Registers or clears the callback supplying live variable snapshots to preview().
 void setPreviewProvider(PreviewProvider provider) {
     previewProviderStorage() = std::move(provider);
 }
 
+// Adapts a tuple-based snapshot provider callback into PreviewVariableSnapshot entries.
 void setTuplePreviewProvider(
     std::function<std::vector<std::tuple<
         std::string, std::string, std::string, bool, std::string>>()> rawProvider
@@ -45,6 +50,7 @@ void setTuplePreviewProvider(
     };
 }
 
+// Prints a formatted summary of variable snapshots (name, type, value, lock, scope).
 void previewSnapshot(
     const std::vector<VariableSnapshot>& variables,
     std::ostream& out
@@ -68,6 +74,7 @@ void previewSnapshot(
     }
 }
 
+// Queries the registered provider and renders active variable state to `out`.
 void preview(std::ostream& out) {
     const auto& provider = previewProviderStorage();
 

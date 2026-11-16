@@ -1,3 +1,4 @@
+// Full-system integration tests spanning frontend, codegen, and runtime execution layers.
 #if __has_include("../runtime/Budget.h")
 #include "../runtime/Budget.h"
 #include "../runtime/Checkpoint.h"
@@ -34,6 +35,7 @@
 
 using namespace gash;
 
+// Executes the three system-wide integration test scenarios.
 int main() {
     std::cout << "============================================================\n";
     std::cout << "          GASH FULL SYSTEM INTEGRATION TEST SUITE           \n";

@@ -1,3 +1,4 @@
+// Declares GuardRule and GuardManager for validating variable mutation invariants.
 #ifndef GASH_GUARD_H
 #define GASH_GUARD_H
 

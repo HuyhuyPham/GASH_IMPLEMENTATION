@@ -1,4 +1,5 @@
 
+// Declares Parser, a recursive-descent parser turning Lexer tokens into an AST.
 #ifndef GASH_PARSER_H
 #define GASH_PARSER_H
 
@@ -7,6 +8,8 @@
 
 #include <cstddef>
 #include <memory>
+#include <stdexcept>
+#include <string>
 #include <vector>
 
 namespace gash {
@@ -122,6 +125,12 @@ private:
 
     // Parses basic expressions such as numbers and variables.
     std::unique_ptr<Expr> parsePrimary();
+
+    // Parses a primitive or parameterized list<T> type name.
+    std::string parseTypeName();
+
+    // Formats a syntax error with the current token's source location.
+    std::runtime_error syntaxError(const std::string& message) const;
 };
 
 } // namespace gash

@@ -1,5 +1,5 @@
 
-//  Nested statement and boundary tests.
+// Unit tests for deeply nested statements, functions, lists, and block boundaries.
 
 #include <cassert>
 #include <iostream>
@@ -26,6 +26,7 @@ Program parseSource(const std::string& source) {
     return parser.parseProgram();
 }
 
+// Executes nested control-flow and transparency statement parsing checks.
 int main() {
 
     // Test 1: Nested if, while and repeat statements.

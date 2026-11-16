@@ -1,3 +1,4 @@
+// Defines the GASH Type model, Symbol metadata, and ScopeStack for lexical scoping.
 #ifndef GASH_TYPE_H
 #define GASH_TYPE_H
 
@@ -194,16 +195,19 @@ struct Symbol {
 // Lexical scope stack managing symbol tables across nested blocks and functions.
 class ScopeStack {
 public:
+    // Initializes the stack with the top-level global scope frame.
     ScopeStack() {
         // Initialize with global scope (scopeId = 1).
         pushScope();
     }
 
+    // Opens a new nested lexical scope with a unique scope identifier.
     void pushScope() {
         const std::size_t id = nextScopeId_++;
         scopes_.push_back(ScopeFrame{id, {}});
     }
 
+    // Exits the innermost lexical scope frame (preserving the global scope).
     void popScope() {
         if (scopes_.size() <= 1) {
             throw std::logic_error("Cannot pop the global scope");
@@ -211,10 +215,12 @@ public:
         scopes_.pop_back();
     }
 
+    // Returns the current number of active nested scopes.
     std::size_t depth() const noexcept {
         return scopes_.size();
     }
 
+    // Returns the unique identifier of the innermost active scope.
     std::size_t currentScopeId() const noexcept {
         return scopes_.back().id;
     }

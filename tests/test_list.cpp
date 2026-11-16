@@ -1,3 +1,4 @@
+// Unit tests verifying List<T> size, capacity, occupancy tracking, bounds, and deep copy.
 #if __has_include("../runtime/List.h")
 #include "../runtime/List.h"
 #else
@@ -13,10 +14,12 @@
 
 using gash::List;
 
+// Asserts `condition` holds or throws std::runtime_error with `message`.
 void require(bool condition, const std::string& message) {
     if (!condition) throw std::runtime_error(message);
 }
 
+// Verifies `action()` throws `Exception`, failing with `message` otherwise.
 template <typename Exception, typename Action>
 void requireThrows(Action action, const std::string& message) {
     try { action(); }
@@ -26,6 +29,7 @@ void requireThrows(Action action, const std::string& message) {
 
 struct Test { const char* name; std::function<void()> fn; };
 
+// Runs all 20 List<T> behavioral and boundary test cases.
 int main() {
     const std::vector<Test> tests = {
         {"A4-01 initial size", [] { List<int> a(3); require(a.size() == 3, "size"); }},

@@ -52,7 +52,7 @@ The GASH implementation processes programs through four coordinated stages:
 
 ## 4. Runtime Environment, Locks, and Guards (`runtime/`)
 
-### 4.1 Runtime Values (`runtime/Value.h`)
+### 4.1 Runtime Values (`runtime/Value.h`, `runtime/Value.cpp`)
 - `Value` and `ListValue` use deep-copy value semantics.
 - Provides runtime conversion helpers (`gash::toInt`, `gash::toFloat`, `gash::toString`) and `gash::input()` used by generated C++17 code.
 

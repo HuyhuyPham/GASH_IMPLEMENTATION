@@ -1,3 +1,4 @@
+// Declares inspect() and output overloads for displaying typed GASH list metadata and slots.
 #ifndef GASH_INSPECT_H
 #define GASH_INSPECT_H
 
@@ -13,6 +14,12 @@ namespace gash {
 // instantiated in Inspect.cpp.
 template <typename T>
 void inspect(const List<T>& list, std::ostream& out = std::cout);
+
+// Overload allowing output(list) to display list metadata and elements cleanly.
+template <typename T>
+inline void writeOutput(std::ostream& out, const List<T>& list) {
+    inspect(list, out);
+}
 
 // Explicit instantiation declarations for the GASH primitive element types.
 extern template void inspect<int>(const List<int>&, std::ostream&);

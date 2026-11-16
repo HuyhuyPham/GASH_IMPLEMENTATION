@@ -1,4 +1,6 @@
 
+// Declares preview() and snapshot provider registration APIs for displaying live variable state.
+
 #ifndef GASH_PREVIEW_H
 #define GASH_PREVIEW_H
 

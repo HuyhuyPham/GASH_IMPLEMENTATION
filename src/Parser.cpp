@@ -1,4 +1,5 @@
 
+// Implements the recursive-descent Parser building GASH AST nodes from tokens.
 #if __has_include("../include/Parser.h")
 #include "../include/Parser.h"
 #else
@@ -85,6 +86,62 @@ const Token& Parser::advance() {
     }
 
     return token;
+}
+
+// Creates a std::runtime_error formatted with the current token's line and column.
+std::runtime_error Parser::syntaxError(const std::string& message) const {
+    const Token& token = peek();
+    return std::runtime_error(
+        "Syntax error at line " + std::to_string(token.line) +
+        ", column " + std::to_string(token.column) + ": " + message);
+}
+
+// Parses a primitive type name or parameterized `list<T>` type specification.
+std::string Parser::parseTypeName() {
+    switch (peek().type) {
+        case TokenType::TYPE_INT:
+            advance();
+            return "int";
+        case TokenType::TYPE_FLOAT:
+            advance();
+            return "float";
+        case TokenType::TYPE_CHAR:
+            advance();
+            return "char";
+        case TokenType::TYPE_STRING:
+            advance();
+            return "string";
+        case TokenType::TYPE_BOOL:
+            advance();
+            return "bool";
+        case TokenType::TYPE_LIST: {
+            advance();
+            if (peek().type != TokenType::LESS) {
+                throw syntaxError("Expected '<' after 'list'");
+            }
+            advance();
+
+            std::string elementType;
+            switch (peek().type) {
+                case TokenType::TYPE_INT:    elementType = "int"; break;
+                case TokenType::TYPE_FLOAT:  elementType = "float"; break;
+                case TokenType::TYPE_CHAR:   elementType = "char"; break;
+                case TokenType::TYPE_STRING: elementType = "string"; break;
+                case TokenType::TYPE_BOOL:   elementType = "bool"; break;
+                default:
+                    throw syntaxError("Expected a valid list element type");
+            }
+            advance();
+
+            if (peek().type != TokenType::GREATER) {
+                throw syntaxError("Expected '>' after list element type");
+            }
+            advance();
+            return "list<" + elementType + ">";
+        }
+        default:
+            throw syntaxError("Expected parameter type");
+    }
 }
 
 // Parses a complete GASH program.
@@ -192,7 +249,7 @@ std::unique_ptr<Stmt> Parser::parseStatement() {
 
     // Check for the semicolon.
     if (peek().type != TokenType::SEMICOLON) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected ';' after expression"
         );
     }
@@ -226,7 +283,7 @@ std::unique_ptr<BlockStmt> Parser::parseBlock() {
 
     // Check for the closing brace.
     if (peek().type != TokenType::RIGHT_BRACE) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected '}' after block"
         );
     }
@@ -249,7 +306,7 @@ std::unique_ptr<Stmt> Parser::parseVarDeclaration() {
 
     // Check for a variable name.
     if (peek().type != TokenType::IDENTIFIER) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected variable name after 'var'"
         );
     }
@@ -259,7 +316,7 @@ std::unique_ptr<Stmt> Parser::parseVarDeclaration() {
 
     // Check for the assignment operator.
     if (peek().type != TokenType::ASSIGN) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected '=' after variable name"
         );
     }
@@ -272,7 +329,7 @@ std::unique_ptr<Stmt> Parser::parseVarDeclaration() {
 
     // Check for the semicolon.
     if (peek().type != TokenType::SEMICOLON) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected ';' after variable declaration"
         );
     }
@@ -299,7 +356,7 @@ std::unique_ptr<Stmt> Parser::parseReturnStatement() {
 
     // Check for the semicolon.
     if (peek().type != TokenType::SEMICOLON) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected ';' after return statement"
         );
     }
@@ -322,7 +379,7 @@ std::unique_ptr<Stmt> Parser::parseIfStatement() {
 
     // Check for '('.
     if (peek().type != TokenType::LEFT_PAREN) {
-        throw std::runtime_error("Expected '(' after if");
+        throw syntaxError("Expected '(' after if");
     }
 
     // Consume '('.
@@ -333,7 +390,7 @@ std::unique_ptr<Stmt> Parser::parseIfStatement() {
 
     // Check for ')'.
     if (peek().type != TokenType::RIGHT_PAREN) {
-        throw std::runtime_error("Expected ')' after if condition");
+        throw syntaxError("Expected ')' after if condition");
     }
 
     // Consume ')'.
@@ -341,7 +398,7 @@ std::unique_ptr<Stmt> Parser::parseIfStatement() {
 
     // Check for the opening brace.
     if (peek().type != TokenType::LEFT_BRACE) {
-        throw std::runtime_error("Expected '{' after if condition");
+        throw syntaxError("Expected '{' after if condition");
     }
 
     // Parse the if block.
@@ -358,7 +415,7 @@ std::unique_ptr<Stmt> Parser::parseIfStatement() {
 
         // Check for the opening brace.
         if (peek().type != TokenType::LEFT_BRACE) {
-            throw std::runtime_error("Expected '{' after otherwise");
+            throw syntaxError("Expected '{' after otherwise");
         }
 
         // Parse the otherwise block.
@@ -382,7 +439,7 @@ std::unique_ptr<Stmt> Parser::parseWhileStatement() {
 
     // Check for '('.
     if (peek().type != TokenType::LEFT_PAREN) {
-        throw std::runtime_error("Expected '(' after while");
+        throw syntaxError("Expected '(' after while");
     }
 
     // Consume '('.
@@ -393,7 +450,7 @@ std::unique_ptr<Stmt> Parser::parseWhileStatement() {
 
     // Check for ')'.
     if (peek().type != TokenType::RIGHT_PAREN) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected ')' after while condition"
         );
     }
@@ -403,7 +460,7 @@ std::unique_ptr<Stmt> Parser::parseWhileStatement() {
 
     // Check for the opening brace.
     if (peek().type != TokenType::LEFT_BRACE) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected '{' after while condition"
         );
     }
@@ -427,7 +484,7 @@ std::unique_ptr<Stmt> Parser::parseRepeatStatement() {
 
     // Check for '('.
     if (peek().type != TokenType::LEFT_PAREN) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected '(' after repeat"
         );
     }
@@ -440,7 +497,7 @@ std::unique_ptr<Stmt> Parser::parseRepeatStatement() {
 
     // Check for ')'.
     if (peek().type != TokenType::RIGHT_PAREN) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected ')' after repeat count"
         );
     }
@@ -450,7 +507,7 @@ std::unique_ptr<Stmt> Parser::parseRepeatStatement() {
 
     // Check for the opening brace.
     if (peek().type != TokenType::LEFT_BRACE) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected '{' after repeat count"
         );
     }
@@ -474,7 +531,7 @@ std::unique_ptr<Stmt> Parser::parseExitStatement() {
 
     // Check for the semicolon.
     if (peek().type != TokenType::SEMICOLON) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected ';' after exit"
         );
     }
@@ -494,7 +551,7 @@ std::unique_ptr<Stmt> Parser::parseSkipStatement() {
 
     // Check for the semicolon.
     if (peek().type != TokenType::SEMICOLON) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected ';' after skip"
         );
     }
@@ -514,7 +571,7 @@ std::unique_ptr<Stmt> Parser::parseFunctionDeclaration() {
 
     // Check for the function name.
     if (peek().type != TokenType::IDENTIFIER) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected function name after 'func'"
         );
     }
@@ -524,7 +581,7 @@ std::unique_ptr<Stmt> Parser::parseFunctionDeclaration() {
 
     // Check for '('.
     if (peek().type != TokenType::LEFT_PAREN) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected '(' after function name"
         );
     }
@@ -540,39 +597,12 @@ std::unique_ptr<Stmt> Parser::parseFunctionDeclaration() {
 
         while (true) {
 
-            // Check and save the parameter type.
-            std::string paramType;
-
-            switch (peek().type) {
-                case TokenType::TYPE_INT:
-                    paramType = "int";
-                    break;
-                case TokenType::TYPE_FLOAT:
-                    paramType = "float";
-                    break;
-                case TokenType::TYPE_CHAR:
-                    paramType = "char";
-                    break;
-                case TokenType::TYPE_STRING:
-                    paramType = "string";
-                    break;
-                case TokenType::TYPE_BOOL:
-                    paramType = "bool";
-                    break;
-                default:
-                    throw std::runtime_error(
-                        "Expected parameter type"
-                    );
-            }
-
-            // Consume the parameter type.
-            advance();
+            // Parse parameter type (primitive or list<T>).
+            std::string paramType = parseTypeName();
 
             // Check for a parameter name.
             if (peek().type != TokenType::IDENTIFIER) {
-                throw std::runtime_error(
-                    "Expected parameter name"
-                );
+                throw syntaxError("Expected parameter name");
             }
 
             // Read and save the parameter name.
@@ -596,7 +626,7 @@ std::unique_ptr<Stmt> Parser::parseFunctionDeclaration() {
 
     // Check for ')'.
     if (peek().type != TokenType::RIGHT_PAREN) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected ')' after parameters"
         );
     }
@@ -606,7 +636,7 @@ std::unique_ptr<Stmt> Parser::parseFunctionDeclaration() {
 
     // Check for the function body.
     if (peek().type != TokenType::LEFT_BRACE) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected '{' after function declaration"
         );
     }
@@ -634,7 +664,7 @@ std::unique_ptr<Stmt> Parser::parseGuardStatement() {
 
     // Check for the semicolon.
     if (peek().type != TokenType::SEMICOLON) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected ';' after guard statement"
         );
     }
@@ -657,7 +687,7 @@ std::unique_ptr<Stmt> Parser::parseLockStatement() {
 
     // Check for a variable name.
     if (peek().type != TokenType::IDENTIFIER) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected variable name after 'lock'"
         );
     }
@@ -667,7 +697,7 @@ std::unique_ptr<Stmt> Parser::parseLockStatement() {
 
     // Check for the semicolon.
     if (peek().type != TokenType::SEMICOLON) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected ';' after lock statement"
         );
     }
@@ -690,7 +720,7 @@ std::unique_ptr<Stmt> Parser::parseUnlockStatement() {
 
     // Check for a variable name.
     if (peek().type != TokenType::IDENTIFIER) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected variable name after 'unlock'"
         );
     }
@@ -700,7 +730,7 @@ std::unique_ptr<Stmt> Parser::parseUnlockStatement() {
 
     // Check for the semicolon.
     if (peek().type != TokenType::SEMICOLON) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected ';' after unlock statement"
         );
     }
@@ -723,7 +753,7 @@ std::unique_ptr<Stmt> Parser::parseCheckpointStatement() {
 
     // Check for the checkpoint label.
     if (peek().type != TokenType::IDENTIFIER) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected checkpoint label"
         );
     }
@@ -733,7 +763,7 @@ std::unique_ptr<Stmt> Parser::parseCheckpointStatement() {
 
     // Check for '('.
     if (peek().type != TokenType::LEFT_PAREN) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected '(' after checkpoint label"
         );
     }
@@ -746,7 +776,7 @@ std::unique_ptr<Stmt> Parser::parseCheckpointStatement() {
 
     // Require at least one variable.
     if (peek().type != TokenType::IDENTIFIER) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected variable name in checkpoint"
         );
     }
@@ -767,7 +797,7 @@ std::unique_ptr<Stmt> Parser::parseCheckpointStatement() {
 
         // Check for the next variable.
         if (peek().type != TokenType::IDENTIFIER) {
-            throw std::runtime_error(
+            throw syntaxError(
                 "Expected variable name after ','"
             );
         }
@@ -775,7 +805,7 @@ std::unique_ptr<Stmt> Parser::parseCheckpointStatement() {
 
     // Check for ')'.
     if (peek().type != TokenType::RIGHT_PAREN) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected ')' after checkpoint variables"
         );
     }
@@ -785,7 +815,7 @@ std::unique_ptr<Stmt> Parser::parseCheckpointStatement() {
 
     // Check for the semicolon.
     if (peek().type != TokenType::SEMICOLON) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected ';' after checkpoint"
         );
     }
@@ -809,7 +839,7 @@ std::unique_ptr<Stmt> Parser::parseRestoreStatement() {
 
     // Check for '('.
     if (peek().type != TokenType::LEFT_PAREN) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected '(' after restore"
         );
     }
@@ -819,7 +849,7 @@ std::unique_ptr<Stmt> Parser::parseRestoreStatement() {
 
     // Check for the checkpoint label.
     if (peek().type != TokenType::IDENTIFIER) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected checkpoint label in restore"
         );
     }
@@ -829,7 +859,7 @@ std::unique_ptr<Stmt> Parser::parseRestoreStatement() {
 
     // Check for ')'.
     if (peek().type != TokenType::RIGHT_PAREN) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected ')' after restore label"
         );
     }
@@ -839,7 +869,7 @@ std::unique_ptr<Stmt> Parser::parseRestoreStatement() {
 
     // Check for the semicolon.
     if (peek().type != TokenType::SEMICOLON) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected ';' after restore"
         );
     }
@@ -862,7 +892,7 @@ std::unique_ptr<Stmt> Parser::parseBudgetStatement() {
 
     // Check for '('.
     if (peek().type != TokenType::LEFT_PAREN) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected '(' after budget"
         );
     }
@@ -875,7 +905,7 @@ std::unique_ptr<Stmt> Parser::parseBudgetStatement() {
 
     // Check for ')'.
     if (peek().type != TokenType::RIGHT_PAREN) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected ')' after budget limit"
         );
     }
@@ -885,7 +915,7 @@ std::unique_ptr<Stmt> Parser::parseBudgetStatement() {
 
     // Check for the opening brace.
     if (peek().type != TokenType::LEFT_BRACE) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Expected '{' after budget limit"
         );
     }
@@ -916,7 +946,7 @@ std::unique_ptr<Expr> Parser::parseExpressionOnly() {
 
     // Check that no unexpected tokens remain.
     if (!isAtEnd()) {
-        throw std::runtime_error(
+        throw syntaxError(
             "Unexpected token after expression: " + peek().lexeme
         );
     }
@@ -941,7 +971,7 @@ std::unique_ptr<Expr> Parser::parseAssignment() {
         if (dynamic_cast<VariableExpr*>(left.get()) == nullptr &&
             dynamic_cast<IndexExpr*>(left.get()) == nullptr) {
 
-            throw std::runtime_error("Invalid assignment target");
+            throw syntaxError("Invalid assignment target");
         }
 
         // Parse the right expression recursively.
@@ -1257,7 +1287,7 @@ std::unique_ptr<Expr> Parser::parsePostfix() {
                 dynamic_cast<VariableExpr*>(expression.get());
 
             if (variable == nullptr) {
-                throw std::runtime_error("Invalid function call");
+                throw syntaxError("Invalid function call");
             }
 
             // Save the function name.
@@ -1289,7 +1319,7 @@ std::unique_ptr<Expr> Parser::parsePostfix() {
 
             // Check for ')'.
             if (peek().type != TokenType::RIGHT_PAREN) {
-                throw std::runtime_error("Expected ')' after arguments");
+                throw syntaxError("Expected ')' after arguments");
             }
 
             // Consume ')'.
@@ -1321,7 +1351,7 @@ std::unique_ptr<Expr> Parser::parsePostfix() {
 
             // Check for ']'.
             if (peek().type != TokenType::RIGHT_BRACKET) {
-                throw std::runtime_error("Expected ']'");
+                throw syntaxError("Expected ']'");
             }
 
             // Consume ']'.
@@ -1393,7 +1423,7 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
             text.front() != '"' ||
             text.back() != '"') {
 
-            throw std::runtime_error("Invalid string literal");
+            throw syntaxError("Invalid string literal");
         }
 
         // Store the decoded string value.
@@ -1407,7 +1437,7 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
 
                 // Make sure another character follows.
                 if (i + 2 >= text.size()) {
-                    throw std::runtime_error("Invalid string escape");
+                    throw syntaxError("Invalid string escape");
                 }
 
                 // Decode and store the escaped character.
@@ -1452,7 +1482,7 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
             text.front() != '\'' ||
             text.back() != '\'') {
 
-            throw std::runtime_error("Invalid character literal");
+            throw syntaxError("Invalid character literal");
         }
 
         // Store the character value.
@@ -1470,7 +1500,7 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
 
         } else {
 
-            throw std::runtime_error("Invalid character literal");
+            throw syntaxError("Invalid character literal");
         }
 
         // Create and return the character AST node.
@@ -1498,7 +1528,7 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
         // Built-in functions must be followed by '('.
         if (isBuiltin &&
             peek().type != TokenType::LEFT_PAREN) {
-            throw std::runtime_error(
+            throw syntaxError(
                 "Expected '(' after built-in function"
             );
         }
@@ -1515,7 +1545,7 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
 
         // Check for '<'.
         if (peek().type != TokenType::LESS) {
-            throw std::runtime_error("Expected '<' after list");
+            throw syntaxError("Expected '<' after list");
         }
 
         // Consume '<'.
@@ -1547,7 +1577,7 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
                 break;
 
             default:
-                throw std::runtime_error(
+                throw syntaxError(
                     "Expected a valid list element type"
                 );
         }
@@ -1557,7 +1587,7 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
 
         // Check for '>'.
         if (peek().type != TokenType::GREATER) {
-            throw std::runtime_error("Expected '>' after list type");
+            throw syntaxError("Expected '>' after list type");
         }
 
         // Consume '>'.
@@ -1565,7 +1595,7 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
 
         // Check for '('.
         if (peek().type != TokenType::LEFT_PAREN) {
-            throw std::runtime_error("Expected '(' after list type");
+            throw syntaxError("Expected '(' after list type");
         }
 
         // Consume '('.
@@ -1576,7 +1606,7 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
 
         // Check for ')'.
         if (peek().type != TokenType::RIGHT_PAREN) {
-            throw std::runtime_error("Expected ')' after list size");
+            throw syntaxError("Expected ')' after list size");
         }
 
         // Consume ')'.
@@ -1601,7 +1631,7 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
 
         // Check for the closing parenthesis.
         if (peek().type != TokenType::RIGHT_PAREN) {
-            throw std::runtime_error("Expected ')'");
+            throw syntaxError("Expected ')'");
         }
 
         // Consume the closing parenthesis.
@@ -1618,7 +1648,7 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
     }
 
     // Report an error for unsupported tokens.
-    throw std::runtime_error("Expected an expression");
+    throw syntaxError("Expected an expression");
 }
 
 
