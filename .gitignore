@@ -1,6 +1,25 @@
-# Ignore the compiled AST test executable
-/tests/ast_test
+# CMake build directories
+/build/
+/build-*/
 /build-mac/
-/examples/*.out
+
+# Generated GASH programs
 /examples/*.cpp
+/examples/*.out
 /examples/*.exe
+
+# Temporary local test executables
+/test_auto_cleanup
+/test_error
+/test_lexer
+/test_list
+
+# Local scratch files
+/test.cpp
+
+# macOS metadata
+.DS_Store
+**/.DS_Store
+
+# Editor files
+.vscode/
